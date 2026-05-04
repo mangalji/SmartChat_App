@@ -45,6 +45,9 @@
       <div class="mb-3">
         <label class="sc-label">Password</label>
         {{ form.password }}
+        <div class="mt-1" style="font-size:0.75rem;color:var(--sc-text-muted)">
+          Min. 8 chars • uppercase • lowercase • digit • special character
+        </div>
         {% if form.password.errors %}
           <div class="text-danger mt-1" style="font-size:0.8rem">{{ form.password.errors.0 }}</div>
         {% endif %}

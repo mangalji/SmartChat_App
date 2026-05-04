@@ -3,11 +3,17 @@ from django.contrib.auth import login, logout, get_user_model
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
 
 from .forms import SignupForm, LoginForm, OTPVerifyForm
 from .utils import create_otp, verify_otp
 
 User = get_user_model()
+
+# Maximum OTP verification attempts before lockout
+MAX_OTP_ATTEMPTS = 5
+# Server-side resend cooldown in seconds
+OTP_RESEND_COOLDOWN = 30
 
 
 # ──────────────────────────────────────────────
@@ -38,6 +44,7 @@ def signup_view(request):
         # Store user pk in session for OTP step
         request.session['otp_user_id'] = user.pk
         request.session['otp_purpose']  = 'signup'
+        request.session['otp_attempts'] = 0
 
         messages.info(request, f'OTP sent to {user.email}. Check your console.')
         return redirect('accounts:verify_otp')
@@ -59,14 +66,17 @@ def login_view(request):
         cd    = form.cleaned_data
         email = cd['email'].lower()
 
+        # Use generic error message to prevent user enumeration
+        generic_error = 'Invalid email or password.'
+
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
-            messages.error(request, 'No account found with that email.')
+            messages.error(request, generic_error)
             return render(request, 'accounts/login.html', {'form': form})
 
         if not user.check_password(cd['password']):
-            messages.error(request, 'Incorrect password.')
+            messages.error(request, generic_error)
             return render(request, 'accounts/login.html', {'form': form})
 
         if not user.is_verified:
@@ -74,6 +84,7 @@ def login_view(request):
             create_otp(user, purpose='signup')
             request.session['otp_user_id'] = user.pk
             request.session['otp_purpose']  = 'signup'
+            request.session['otp_attempts'] = 0
             messages.warning(request, 'Account not verified. OTP sent to your email.')
             return redirect('accounts:verify_otp')
 
@@ -81,6 +92,7 @@ def login_view(request):
         create_otp(user, purpose='login')
         request.session['otp_user_id'] = user.pk
         request.session['otp_purpose']  = 'login'
+        request.session['otp_attempts'] = 0
 
         messages.info(request, f'OTP sent to {user.email}. Check your console.')
         return redirect('accounts:verify_otp')
@@ -89,7 +101,7 @@ def login_view(request):
 
 
 # ──────────────────────────────────────────────
-# VERIFY OTP
+# VERIFY OTP  (with rate limiting)
 # ──────────────────────────────────────────────
 @require_http_methods(['GET', 'POST'])
 def verify_otp_view(request):
@@ -106,6 +118,16 @@ def verify_otp_view(request):
         messages.error(request, 'User not found.')
         return redirect('accounts:login')
 
+    # Check for too many failed attempts (rate limiting)
+    attempts = request.session.get('otp_attempts', 0)
+    if attempts >= MAX_OTP_ATTEMPTS:
+        # Clear session and force restart
+        request.session.pop('otp_user_id', None)
+        request.session.pop('otp_purpose', None)
+        request.session.pop('otp_attempts', None)
+        messages.error(request, 'Too many failed attempts. Please start again.')
+        return redirect('accounts:login')
+
     form = OTPVerifyForm(request.POST or None)
 
     if request.method == 'POST' and form.is_valid():
@@ -113,7 +135,14 @@ def verify_otp_view(request):
         ok, error = verify_otp(user, code, purpose)
 
         if not ok:
-            messages.error(request, error)
+            # Increment attempt counter
+            request.session['otp_attempts'] = attempts + 1
+            remaining = MAX_OTP_ATTEMPTS - (attempts + 1)
+            if remaining > 0:
+                error_msg = f'{error} ({remaining} attempt{"s" if remaining != 1 else ""} remaining)'
+            else:
+                error_msg = 'Too many failed attempts. Please start again.'
+            messages.error(request, error_msg)
             return render(request, 'accounts/verify_otp.html', {
                 'form': form, 'email': user.email, 'purpose': purpose
             })
@@ -129,6 +158,7 @@ def verify_otp_view(request):
         # Clean session keys
         request.session.pop('otp_user_id', None)
         request.session.pop('otp_purpose', None)
+        request.session.pop('otp_attempts', None)
 
         messages.success(request, f'Welcome, {user.full_name}!')
         return redirect('chat:index')
@@ -139,7 +169,7 @@ def verify_otp_view(request):
 
 
 # ──────────────────────────────────────────────
-# RESEND OTP
+# RESEND OTP  (with server-side cooldown)
 # ──────────────────────────────────────────────
 @require_http_methods(['POST'])
 def resend_otp_view(request):
@@ -152,7 +182,26 @@ def resend_otp_view(request):
 
     try:
         user = User.objects.get(pk=user_id)
+
+        # Server-side cooldown: check when the last OTP was created
+        from .models import OTP
+        last_otp = OTP.objects.filter(
+            user=user, purpose=purpose
+        ).order_by('-created_at').first()
+
+        if last_otp:
+            elapsed = (timezone.now() - last_otp.created_at).total_seconds()
+            if elapsed < OTP_RESEND_COOLDOWN:
+                remaining = int(OTP_RESEND_COOLDOWN - elapsed)
+                messages.warning(
+                    request,
+                    f'Please wait {remaining}s before requesting a new OTP.'
+                )
+                return redirect('accounts:verify_otp')
+
         create_otp(user, purpose=purpose)
+        # Reset attempts on new OTP
+        request.session['otp_attempts'] = 0
         messages.success(request, 'New OTP sent. Check your console.')
     except User.DoesNotExist:
         messages.error(request, 'User not found.')
@@ -163,6 +212,7 @@ def resend_otp_view(request):
 # ──────────────────────────────────────────────
 # LOGOUT
 # ──────────────────────────────────────────────
+@login_required
 @require_http_methods(['POST'])
 def logout_view(request):
     logout(request)

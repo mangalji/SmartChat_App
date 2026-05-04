@@ -29,7 +29,7 @@ def _get_model():
         import google.generativeai as genai
         genai.configure(api_key=api_key)
         _model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
+            model_name='gemini-2.5-flash',
             generation_config={
                 'temperature':     0.7,
                 'top_p':           0.9,
@@ -37,13 +37,13 @@ def _get_model():
                 'max_output_tokens': 120,
             },
             safety_settings=[
-                {'category': 'HARM_CATEGORY_HARASSMENT',        'threshold': 'BLOCK_NONE'},
-                {'category': 'HARM_CATEGORY_HATE_SPEECH',       'threshold': 'BLOCK_NONE'},
-                {'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold': 'BLOCK_NONE'},
-                {'category': 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold': 'BLOCK_NONE'},
+                {'category': 'HARM_CATEGORY_HARASSMENT',        'threshold': 'BLOCK_MEDIUM_AND_ABOVE'},
+                {'category': 'HARM_CATEGORY_HATE_SPEECH',       'threshold': 'BLOCK_MEDIUM_AND_ABOVE'},
+                {'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold': 'BLOCK_MEDIUM_AND_ABOVE'},
+                {'category': 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold': 'BLOCK_MEDIUM_AND_ABOVE'},
             ],
         )
-        logger.info('Gemini model initialised (gemini-1.5-flash)')
+        logger.info('Gemini model initialised (gemini-2.5-flash)')
     except ImportError:
         raise RuntimeError(
             'google-generativeai not installed. Run: pip install google-generativeai'

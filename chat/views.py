@@ -23,6 +23,10 @@ ALLOWED_FILE_TYPES  = {'application/pdf', 'application/msword',
                        'application/zip', 'text/plain'}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024   # 10 MB
 
+# Allowed file extensions (server-side validation)
+ALLOWED_IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+ALLOWED_FILE_EXTS  = {'.pdf', '.doc', '.docx', '.zip', '.txt'}
+
 
 # ──────────────────────────────────────────────
 # CHAT HOME
@@ -272,14 +276,29 @@ def upload_media(request):
 
     content_type = file.content_type or ''
 
-    # Type check
-    if content_type in ALLOWED_IMAGE_TYPES:
+    # Extension check (prevents content-type spoofing)
+    import os
+    _, ext = os.path.splitext(file.name.lower())
+
+    # Type check — verify BOTH content-type AND extension match
+    if content_type in ALLOWED_IMAGE_TYPES and ext in ALLOWED_IMAGE_EXTS:
         media_type = 'image'
-    elif content_type in ALLOWED_FILE_TYPES:
+        # Validate image with Pillow (prevents disguised files)
+        try:
+            from PIL import Image
+            img = Image.open(file)
+            img.verify()     # Checks image integrity
+            file.seek(0)     # Reset for Django to save
+        except Exception:
+            return JsonResponse(
+                {'error': 'Invalid image file. The file appears to be corrupted.'},
+                status=400
+            )
+    elif content_type in ALLOWED_FILE_TYPES and ext in ALLOWED_FILE_EXTS:
         media_type = 'file'
     else:
         return JsonResponse(
-            {'error': f'Unsupported file type: {content_type}. Allowed: images, PDF, Word, ZIP, TXT.'},
+            {'error': 'Unsupported file type. Allowed: images, PDF, Word, ZIP, TXT.'},
             status=400
         )
 

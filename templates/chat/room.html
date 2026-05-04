@@ -134,7 +134,7 @@
 <script>
 const ME_ID     = {{ request.user.pk }};
 const OTHER_ID  = {{ other.pk }};
-const WS_URL    = `ws://${location.host}/ws/dm/${OTHER_ID}/`;
+const WS_URL    = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/dm/${OTHER_ID}/`;
 const CSRF      = SmartChat.getCookie('csrftoken');
 const container = document.getElementById('messages-container');
 const input     = document.getElementById('msg-input');
@@ -217,10 +217,10 @@ function appendBubble(data) {
 
   let inner = '';
   if (data.media_url) {
+    const safeUrl = escAttr(data.media_url);
     inner = data.media_type === 'image'
-      ? `<img src="${data.media_url}" class="sc-media-thumb"
-              onclick="openLightbox('${data.media_url}')" alt="Image" />`
-      : `<a href="${data.media_url}" target="_blank" class="sc-file-pill text-decoration-none"
+      ? `<img src="${safeUrl}" class="sc-media-thumb" data-lightbox="${safeUrl}" alt="Image" />`
+      : `<a href="${safeUrl}" target="_blank" class="sc-file-pill text-decoration-none"
             style="color:inherit">${escHtml(data.file_name || 'File')}</a>`;
   } else {
     inner = escHtml(data.body).replace(/\n/g, '<br>');
@@ -232,6 +232,10 @@ function appendBubble(data) {
       <span class="sc-time">${time}</span>
     </div>`;
   container.appendChild(row);
+  // Bind lightbox via event delegation (avoids inline onclick XSS)
+  row.querySelectorAll('[data-lightbox]').forEach(img => {
+    img.addEventListener('click', () => openLightbox(img.dataset.lightbox));
+  });
   SmartChat.scrollToBottom(container);
 }
 
@@ -333,6 +337,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbo
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                   .replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+                  .replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 SmartChat.scrollToBottom(container);

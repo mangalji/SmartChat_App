@@ -6,6 +6,9 @@ from django.utils import timezone
 
 User = get_user_model()
 
+# Maximum characters per chat message (prevents DB flooding)
+MAX_MSG_LENGTH = 5000
+
 
 # ══════════════════════════════════════════════
 #  1-on-1 Direct Message Consumer
@@ -40,11 +43,14 @@ class DirectMessageConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_discard(self.room, self.channel_name)
 
     async def receive(self, text_data=None, bytes_data=None):
-        data     = json.loads(text_data)
+        try:
+            data = json.loads(text_data)
+        except (json.JSONDecodeError, TypeError):
+            return
         msg_type = data.get('type', 'message')
 
         if msg_type == 'message':
-            body = data.get('body', '').strip()
+            body = data.get('body', '').strip()[:MAX_MSG_LENGTH]
             if not body:
                 return
             msg = await self.save_message(body)
@@ -156,11 +162,14 @@ class GroupChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_discard(self.room, self.channel_name)
 
     async def receive(self, text_data=None, bytes_data=None):
-        data     = json.loads(text_data)
+        try:
+            data = json.loads(text_data)
+        except (json.JSONDecodeError, TypeError):
+            return
         msg_type = data.get('type', 'message')
 
         if msg_type == 'message':
-            body = data.get('body', '').strip()
+            body = data.get('body', '').strip()[:MAX_MSG_LENGTH]
             if not body:
                 return
             msg = await self.save_group_message(body)
