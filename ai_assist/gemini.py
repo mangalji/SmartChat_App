@@ -118,17 +118,23 @@ def get_suggestion_raw(prompt: str) -> str:
 # ─────────────────────────────────────────────
 
 def _call_gemini(prompt: str, fallback: str = '') -> str:
-    try:
-        model    = _get_model()
-        response = model.generate_content(prompt)
-        text     = response.text.strip()
+        try:
+            model    = _get_model()
+            response = model.generate_content(prompt)
+            
+            # Check if the response was blocked by safety filters
+            if not response.candidates or not response.candidates[0].content.parts:
+                logger.warning('Gemini response blocked by safety filters.')
+                return fallback
 
-        # Strip common unwanted prefixes the model sometimes adds
-        for prefix in ('Reply:', 'Suggested reply:', 'Response:', 'Answer:'):
-            if text.lower().startswith(prefix.lower()):
-                text = text[len(prefix):].strip()
+            text = response.text.strip()
 
-        return text if text else fallback
+            # Strip common unwanted prefixes
+            for prefix in ('Reply:', 'Suggested reply:', 'Response:', 'Answer:'):
+                if text.lower().startswith(prefix.lower()):
+                    text = text[len(prefix):].strip()
+
+            return text if text else fallback
 
     except RuntimeError as e:
         # API key missing / SDK not installed — use mock

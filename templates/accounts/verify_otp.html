@@ -70,6 +70,56 @@
 
 {% block extra_js %}
 <script>
+// ── OTP digit boxes → combine into hidden field ──
+(function () {
+  const boxes  = document.querySelectorAll('.sc-otp-input');
+  const hidden = document.getElementById('otp-combined');
+  const form   = document.getElementById('otp-form');
+
+  // Focus first box on load
+  if (boxes.length) boxes[0].focus();
+
+  boxes.forEach((box, i) => {
+    // Only allow digits
+    box.addEventListener('input', () => {
+      box.value = box.value.replace(/\D/g, '').slice(0, 1);
+      if (box.value && i < boxes.length - 1) {
+        boxes[i + 1].focus();
+      }
+      // Auto-submit when all 6 are filled
+      const otp = Array.from(boxes).map(b => b.value).join('');
+      if (otp.length === 6) {
+        hidden.value = otp;
+      }
+    });
+
+    // Backspace → go to previous box
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !box.value && i > 0) {
+        boxes[i - 1].focus();
+        boxes[i - 1].value = '';
+      }
+    });
+
+    // Handle paste (e.g. user pastes "123456")
+    box.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+      pasted.split('').forEach((ch, idx) => {
+        if (boxes[idx]) boxes[idx].value = ch;
+      });
+      // Focus the last filled box or the next empty one
+      const focusIdx = Math.min(pasted.length, boxes.length - 1);
+      boxes[focusIdx].focus();
+    });
+  });
+
+  // On form submit, combine all digits into the hidden field
+  form.addEventListener('submit', () => {
+    hidden.value = Array.from(boxes).map(b => b.value).join('');
+  });
+})();
+
 // ── Countdown (5 min) ──
 (function () {
   let total = 5 * 60;

@@ -41,16 +41,15 @@
     <!-- Messages -->
     <div class="sc-messages" id="messages-container">
       {% for msg in history %}
-        {% with isMine=msg.sender == request.user %}
-        <div class="sc-msg-row {% if isMine %}sent{% else %}received{% endif %}" data-id="{{ msg.id }}">
-          {% if not isMine %}
+        <div class="sc-msg-row {% if msg.sender == request.user %}sent{% else %}received{% endif %}" data-id="{{ msg.id }}">
+          {% if msg.sender != request.user %}
             <div class="sc-avatar me-2"
                  style="width:28px;height:28px;font-size:11px;align-self:flex-end;flex-shrink:0">
               {{ msg.sender.full_name|slice:":1"|upper }}
             </div>
           {% endif %}
-          <div class="sc-bubble {% if isMine %}sent{% else %}received{% endif %}">
-            {% if not isMine %}
+          <div class="sc-bubble {% if msg.sender == request.user %}sent{% else %}received{% endif %}">
+            {% if msg.sender != request.user %}
               <div style="font-size:0.7rem;font-weight:700;margin-bottom:3px;opacity:0.65">
                 {{ msg.sender.full_name }}
               </div>
@@ -71,7 +70,6 @@
             <span class="sc-time">{{ msg.timestamp|date:"h:i A" }}</span>
           </div>
         </div>
-        {% endwith %}
       {% empty %}
         <div class="sc-empty-chat" style="flex:1">
           <div class="sc-empty-icon"><i class="bi bi-people"></i></div>

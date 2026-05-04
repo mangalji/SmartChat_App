@@ -79,31 +79,25 @@ class SignupForm(forms.Form):
     # ── Field-level clean methods ──
 
     def clean_full_name(self):
-        name = self.cleaned_data['full_name'].strip()
-
+        val = self.cleaned_data.get('full_name', '').strip()
         # Collapse multiple spaces
-        name = re.sub(r'\s+', ' ', name)
+        val = re.sub(r'\s+', ' ', val)
+        
+        if len(val) < 3:
+            raise forms.ValidationError('Full name must be at least 3 characters.')
+        
+        # Block digits and common security-sensitive symbols
+        # Allows international letters, spaces, hyphens, dots
+        blocked_chars = r'[0-9!@#$%^&*()_+={}\[\]|\\:;"<>,?/~`]'
+        if re.search(blocked_chars, val):
+            raise forms.ValidationError('Name contains invalid characters. Please use letters only.')
 
-        # Block HTML/script injection attempts
-        if re.search(r'[<>{}\\;]', name):
-            raise forms.ValidationError('Name contains invalid characters.')
-
-        # Only allow letters, spaces, hyphens, apostrophes, periods
-        if not re.match(r"^[A-Za-z\s\.\-']+$", name):
-            raise forms.ValidationError(
-                'Name may only contain letters, spaces, hyphens, apostrophes, and periods.'
-            )
-
-        # Block names that are only whitespace/dots/hyphens (no letters)
-        if not re.search(r'[A-Za-z]', name):
-            raise forms.ValidationError('Name must contain at least one letter.')
-
-        # Must have at least 2 letter characters
-        letters = re.sub(r'[^A-Za-z]', '', name)
-        if len(letters) < 2:
+        # Must have at least some letters (anything that isn't space/dot/dash)
+        letters_only = re.sub(r'[\s\.\-]', '', val)
+        if len(letters_only) < 2:
             raise forms.ValidationError('Name must contain at least 2 letters.')
 
-        return name
+        return val
 
     def clean_email(self):
         email = self.cleaned_data['email'].strip().lower()
