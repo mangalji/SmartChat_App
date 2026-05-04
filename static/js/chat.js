@@ -25,15 +25,20 @@ const SmartChat = {
     if (!wrap) return;
     const id = 'toast-' + Date.now();
     const icons = { success: 'check-circle', error: 'exclamation-circle', info: 'info-circle', warning: 'exclamation-triangle' };
-    wrap.insertAdjacentHTML('beforeend', `
-      <div id="${id}" class="toast show align-items-center sc-toast sc-toast-${type}" role="alert">
-        <div class="d-flex">
-          <div class="toast-body">
-            <i class="bi bi-${icons[type] || 'info-circle'} me-2"></i>${msg}
-          </div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-        </div>
-      </div>`);
+    // wrap.insertAdjacentHTML('beforeend', `
+    //   <div id="${id}" class="toast show align-items-center sc-toast sc-toast-${type}" role="alert">
+    //     <div class="d-flex">
+    //       <div class="toast-body">
+    //         <i class="bi bi-${icons[type] || 'info-circle'} me-2"></i>${msg}
+    //       </div>
+    //       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    //     </div>
+    //   </div>`);
+    toast(msg, type = 'info') {
+      const escaped = msg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // ... use escaped instead of msg
+    }
+
     setTimeout(() => document.getElementById(id)?.remove(), 4000);
   },
 

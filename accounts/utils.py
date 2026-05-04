@@ -3,11 +3,14 @@ import string
 from django.utils import timezone
 from django.conf import settings
 from django.core.mail import send_mail
+import secrets
 
 
 def generate_otp(length=6):
     """Generate a numeric OTP of given length."""
-    return ''.join(random.choices(string.digits, k=length))
+    # return ''.join(random.choices(string.digits, k=length))
+    # return secrets.randbelow(999999)
+    return ''.join(secrets.choice(string.digits) for _ in range(length))
 
 
 def send_otp_email(user, otp_code, purpose):

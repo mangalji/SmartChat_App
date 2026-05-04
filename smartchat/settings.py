@@ -7,8 +7,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # --------------------------------------------------
 # SECURITY
 # --------------------------------------------------
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-fallback-key')
-DEBUG = config('DEBUG', default=True, cast=bool)
+SECRET_KEY = config('SECRET_KEY')
+DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 # --------------------------------------------------
