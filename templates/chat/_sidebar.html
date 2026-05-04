@@ -1,0 +1,113 @@
+<div class="sc-sidebar" id="sc-sidebar">
+
+  <!-- Header -->
+  <div class="sc-sidebar-header d-flex align-items-center justify-content-between">
+    <span class="sc-sidebar-title">Messages</span>
+    <a href="{% url 'chat:create_group' %}" class="sc-icon-btn" title="New Group">
+      <i class="bi bi-people-fill"></i>
+    </a>
+  </div>
+
+  <!-- Search -->
+  <div class="px-3 py-2" style="border-bottom:1px solid var(--sc-border)">
+    <input type="text" id="contact-search" class="form-control sc-input"
+           placeholder="Search…"
+           style="font-size:0.85rem;padding:8px 12px !important;" />
+  </div>
+
+  <div class="sc-contacts" id="contacts-list">
+
+    <!-- Recent DMs -->
+    {% if conversations %}
+      <p class="sc-label px-2 pt-3 mb-1">Recent</p>
+      {% for c in conversations %}
+        {% with unread=unread_counts|default_if_none:'' %}
+        <a href="{% url 'chat:dm_room' c.user.pk %}"
+           class="sc-contact-item {% if request.resolver_match.kwargs.user_id == c.user.pk|stringformat:'s' %}active{% endif %}"
+           data-name="{{ c.user.full_name|lower }}">
+          <div class="position-relative">
+            <div class="sc-avatar">{{ c.user.full_name|slice:":1"|upper }}</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="sc-contact-name">{{ c.user.full_name }}</span>
+              {% if c.last_msg %}
+                <span style="font-size:0.68rem;color:var(--sc-text-muted)">
+                  {{ c.last_msg.timestamp|date:"h:i A" }}
+                </span>
+              {% endif %}
+            </div>
+            <div class="sc-contact-preview">
+              {% if c.last_msg %}
+                {% if c.last_msg.media %}
+                  <i class="bi bi-paperclip"></i> File
+                {% else %}
+                  {{ c.last_msg.body|truncatechars:28 }}
+                {% endif %}
+              {% else %}
+                Start a conversation
+              {% endif %}
+            </div>
+          </div>
+        </a>
+        {% endwith %}
+      {% endfor %}
+    {% endif %}
+
+    <!-- Groups -->
+    {% if my_groups %}
+      <p class="sc-label px-2 pt-3 mb-1">Groups</p>
+      {% for g in my_groups %}
+        <a href="{% url 'chat:group_room' g.pk %}"
+           class="sc-contact-item {% if request.resolver_match.kwargs.group_id == g.pk|stringformat:'s' %}active{% endif %}"
+           data-name="{{ g.name|lower }}">
+          <div class="sc-avatar sc-avatar-group">
+            <i class="bi bi-people-fill" style="font-size:15px"></i>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="sc-contact-name">{{ g.name }}</div>
+            <div class="sc-contact-preview">{{ g.members.count }} member{{ g.members.count|pluralize }}</div>
+          </div>
+        </a>
+      {% endfor %}
+    {% endif %}
+
+    <!-- All Users -->
+    <p class="sc-label px-2 pt-3 mb-1">All Users</p>
+    {% for u in all_users %}
+      <a href="{% url 'chat:dm_room' u.pk %}"
+         class="sc-contact-item"
+         data-name="{{ u.full_name|lower }}">
+        <div class="sc-avatar">{{ u.full_name|slice:":1"|upper }}</div>
+        <div style="flex:1;min-width:0">
+          <div class="sc-contact-name">{{ u.full_name }}</div>
+          <div class="sc-contact-preview">{{ u.email }}</div>
+        </div>
+      </a>
+    {% empty %}
+      <p class="text-center py-3 mb-0" style="font-size:0.82rem;color:var(--sc-text-muted)">
+        No other users yet
+      </p>
+    {% endfor %}
+
+  </div>
+</div>
+
+<script>
+document.getElementById('contact-search').addEventListener('input', function () {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#contacts-list .sc-contact-item').forEach(el => {
+    el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+  });
+  // Hide section labels too
+  document.querySelectorAll('#contacts-list .sc-label').forEach(label => {
+    let next = label.nextElementSibling;
+    let anyVisible = false;
+    while (next && !next.classList.contains('sc-label')) {
+      if (next.style.display !== 'none') anyVisible = true;
+      next = next.nextElementSibling;
+    }
+    label.style.display = anyVisible ? '' : 'none';
+  });
+});
+</script>

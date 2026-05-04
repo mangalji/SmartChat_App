@@ -1,0 +1,9 @@
+Django==4.2.16
+daphne==4.1.2
+channels==4.1.0
+channels-redis==4.2.0
+mysqlclient==2.2.4
+Pillow==10.4.0
+python-decouple==3.8
+google-generativeai==0.7.2
+APScheduler==3.10.4

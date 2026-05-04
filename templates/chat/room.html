@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}{{ other.full_name }} — SmartChat{% endblock %}
+
+{% block content %}
+<div class="sc-chat-layout">
+
+  {% include "chat/_sidebar.html" %}
+
+  <div class="sc-chat-area">
+
+    <!-- Header -->
+    <div class="sc-chat-header">
+      <div class="sc-avatar">{{ other.full_name|slice:":1"|upper }}</div>
+      <div style="flex:1">
+        <div class="fw-semibold" style="font-size:0.95rem">{{ other.full_name }}</div>
+        <div id="status-line" style="font-size:0.75rem;color:var(--sc-text-muted)">
+          {{ other.email }}
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'chat:media_gallery' other.pk %}" class="sc-icon-btn" title="Shared Media">
+          <i class="bi bi-images"></i>
+        </a>
+        <button class="sc-icon-btn" id="ai-suggest-btn" title="AI Suggest Reply">
+          <i class="bi bi-stars"></i>
+        </button>
+        <label class="sc-icon-btn" for="media-upload" title="Attach File" style="margin:0;cursor:pointer">
+          <i class="bi bi-paperclip"></i>
+        </label>
+        <input type="file" id="media-upload" class="d-none"
+               accept="image/jpeg,image/png,image/gif,image/webp,.pdf,.doc,.docx,.zip,.txt" />
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="sc-messages" id="messages-container">
+      {% for msg in history %}
+        <div class="sc-msg-row {% if msg.sender == request.user %}sent{% else %}received{% endif %}"
+             data-id="{{ msg.id }}">
+          <div class="sc-bubble {% if msg.sender == request.user %}sent{% else %}received{% endif %}">
+            {% if msg.media %}
+              {% if msg.media_type == 'image' %}
+                <img src="{{ msg.media.url }}" class="sc-media-thumb"
+                     onclick="openLightbox('{{ msg.media.url }}')" alt="Image" />
+              {% else %}
+                <a href="{{ msg.media.url }}" target="_blank"
+                   class="sc-file-pill text-decoration-none">
+                  {{ msg.media.name|slice:"11:"|default:"File" }}
+                </a>
+              {% endif %}
+            {% else %}
+              {{ msg.body|linebreaksbr }}
+            {% endif %}
+            <span class="sc-time">{{ msg.timestamp|date:"h:i A" }}</span>
+          </div>
+        </div>
+      {% empty %}
+        <div class="sc-empty-chat" style="flex:1">
+          <div class="sc-empty-icon"><i class="bi bi-chat-heart"></i></div>
+          <p style="font-size:0.85rem">Say hello to <strong>{{ other.full_name }}</strong>!</p>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Typing indicator -->
+    <div id="typing-bar" class="px-4 pb-1" style="display:none;font-size:0.78rem;color:var(--sc-text-muted)">
+      <span class="sc-typing-dots">{{ other.full_name }} is typing<span>.</span><span>.</span><span>.</span></span>
+    </div>
+
+    <!-- Upload progress -->
+    <div id="upload-progress" style="display:none" class="px-4 py-1">
+      <div class="progress" style="height:3px;background:var(--sc-surface-2)">
+        <div class="progress-bar bg-info" id="upload-bar" style="width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+
+    <!-- AI suggestion bar -->
+    <div class="sc-ai-bar" id="ai-bar" style="display:none">
+      <span class="sc-ai-badge"><i class="bi bi-stars me-1"></i>AI</span>
+      <span class="sc-ai-suggestion" id="ai-text">Generating…</span>
+      <button class="btn sc-btn-outline btn-sm py-0 px-2" id="ai-use-btn">Use</button>
+      <button class="btn sc-btn-ghost  btn-sm py-0 px-2" id="ai-dismiss-btn">✕</button>
+    </div>
+
+    <!-- Input bar -->
+    <div class="sc-input-bar">
+      <textarea class="form-control sc-msg-input" id="msg-input"
+                rows="1" placeholder="Message {{ other.full_name }}…"></textarea>
+      <button class="sc-send-btn" id="send-btn" title="Send">
+        <i class="bi bi-send-fill"></i>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Lightbox overlay -->
+<div id="lightbox" onclick="closeLightbox()"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;
+            align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="lightbox-img" src="" style="max-width:92vw;max-height:90vh;border-radius:8px;
+       box-shadow:0 0 60px rgba(0,0,0,0.8)" onclick="event.stopPropagation()" />
+  <button onclick="closeLightbox()"
+          style="position:fixed;top:20px;right:24px;background:none;border:none;
+                 color:#fff;font-size:2rem;cursor:pointer;line-height:1">×</button>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.sc-file-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(0,0,0,0.15); border-radius: 8px;
+  padding: 8px 12px; color: inherit; font-size: 0.85rem;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.sc-file-pill::before { content: "📎"; }
+
+/* Typing dots animation */
+.sc-typing-dots span {
+  animation: blink 1.2s infinite;
+  display: inline-block;
+}
+.sc-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.sc-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0; }
+  40% { opacity: 1; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ME_ID     = {{ request.user.pk }};
+const OTHER_ID  = {{ other.pk }};
+const WS_URL    = `ws://${location.host}/ws/dm/${OTHER_ID}/`;
+const CSRF      = SmartChat.getCookie('csrftoken');
+const container = document.getElementById('messages-container');
+const input     = document.getElementById('msg-input');
+const typingBar = document.getElementById('typing-bar');
+let typingTimer, socket;
+
+// ── WebSocket ──
+function connectWS() {
+  socket = new WebSocket(WS_URL);
+
+  socket.onopen = () => SmartChat.scrollToBottom(container);
+
+  socket.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if      (data.type === 'message') appendBubble(data);
+    else if (data.type === 'typing')  handleTyping(data);
+    else if (data.type === 'status')  handleStatus(data);
+  };
+
+  socket.onclose = () => setTimeout(connectWS, 2000);
+  socket.onerror = (e) => console.error('WS error', e);
+}
+connectWS();
+
+// ── Send text ──
+function sendMessage() {
+  const body = input.value.trim();
+  if (!body || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: 'message', body }));
+  input.value = '';
+  input.style.height = 'auto';
+}
+
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// ── Typing indicator (send) ──
+input.addEventListener('input', () => {
+  if (socket.readyState === WebSocket.OPEN)
+    socket.send(JSON.stringify({ type: 'typing', is_typing: true }));
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    if (socket.readyState === WebSocket.OPEN)
+      socket.send(JSON.stringify({ type: 'typing', is_typing: false }));
+  }, 1500);
+});
+
+// ── Typing indicator (receive) ──
+let typingHideTimer;
+function handleTyping(data) {
+  clearTimeout(typingHideTimer);
+  typingBar.style.display = data.is_typing ? 'block' : 'none';
+  if (data.is_typing) typingHideTimer = setTimeout(() => { typingBar.style.display = 'none'; }, 3000);
+}
+
+// ── Online status ──
+function handleStatus(data) {
+  if (data.user_id !== OTHER_ID) return;
+  const line = document.getElementById('status-line');
+  if (data.status === 'online') {
+    line.innerHTML = '<span class="sc-online-dot"></span> Online';
+    line.style.color = 'var(--sc-success)';
+  } else {
+    line.textContent = '{{ other.email }}';
+    line.style.color = 'var(--sc-text-muted)';
+  }
+}
+
+// ── Append bubble ──
+function appendBubble(data) {
+  const isMine = data.sender_id === ME_ID;
+  const time   = new Date(data.timestamp).toLocaleTimeString('en-IN', {
+    hour: '2-digit', minute: '2-digit', hour12: true
+  });
+  const row = document.createElement('div');
+  row.className = `sc-msg-row ${isMine ? 'sent' : 'received'}`;
+  row.dataset.id = data.id;
+
+  let inner = '';
+  if (data.media_url) {
+    inner = data.media_type === 'image'
+      ? `<img src="${data.media_url}" class="sc-media-thumb"
+              onclick="openLightbox('${data.media_url}')" alt="Image" />`
+      : `<a href="${data.media_url}" target="_blank" class="sc-file-pill text-decoration-none"
+            style="color:inherit">${escHtml(data.file_name || 'File')}</a>`;
+  } else {
+    inner = escHtml(data.body).replace(/\n/g, '<br>');
+  }
+
+  row.innerHTML = `
+    <div class="sc-bubble ${isMine ? 'sent' : 'received'}">
+      ${inner}
+      <span class="sc-time">${time}</span>
+    </div>`;
+  container.appendChild(row);
+  SmartChat.scrollToBottom(container);
+}
+
+// ── Media upload ──
+document.getElementById('media-upload').addEventListener('change', async function () {
+  const file = this.files[0];
+  if (!file) return;
+
+  if (file.size > 10 * 1024 * 1024) {
+    SmartChat.toast('File too large. Max 10 MB.', 'error'); return;
+  }
+
+  const prog = document.getElementById('upload-progress');
+  const bar  = document.getElementById('upload-bar');
+  prog.style.display = 'block';
+  bar.style.width = '30%';
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('user_id', OTHER_ID);
+
+  try {
+    bar.style.width = '70%';
+    const res  = await fetch('{% url "chat:upload_media" %}', {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd,
+    });
+    bar.style.width = '100%';
+    const data = await res.json();
+
+    if (data.error) {
+      SmartChat.toast(data.error, 'error');
+    } else {
+      appendBubble({ ...data, type: 'message', body: '' });
+      // Notify other user via WS
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'media_notify', id: data.id,
+          media_url: data.media_url, media_type: data.media_type,
+          file_name: data.file_name, timestamp: data.timestamp,
+        }));
+      }
+    }
+  } catch (err) {
+    SmartChat.toast('Upload failed. Try again.', 'error');
+  } finally {
+    setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0'; }, 600);
+    this.value = '';
+  }
+});
+
+// ── AI Suggest ──
+document.getElementById('ai-suggest-btn').addEventListener('click', async () => {
+  const bar  = document.getElementById('ai-bar');
+  const text = document.getElementById('ai-text');
+  bar.style.display = 'flex';
+  text.textContent  = 'Generating suggestion…';
+
+  const bubbles = [...container.querySelectorAll('.sc-bubble')].slice(-6);
+  const context = bubbles.map(b => {
+    const clone = b.cloneNode(true);
+    clone.querySelectorAll('.sc-time').forEach(t => t.remove());
+    return clone.textContent.trim();
+  }).filter(Boolean).join(' | ');
+
+  try {
+    const res = await fetch('{% url "chat:ai_suggest" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ context, other_name: '{{ other.full_name }}', last_msg_id: container.querySelector('[data-id]') ? [...container.querySelectorAll('[data-id]')].at(-1)?.dataset?.id : null }),
+    });
+    const d = await res.json();
+    text.textContent = d.suggestion || 'Could not generate suggestion.';
+  } catch {
+    text.textContent = 'AI unavailable. Try again.';
+  }
+});
+
+document.getElementById('ai-use-btn').addEventListener('click', () => {
+  input.value = document.getElementById('ai-text').textContent;
+  document.getElementById('ai-bar').style.display = 'none';
+  input.focus();
+});
+document.getElementById('ai-dismiss-btn').addEventListener('click', () => {
+  document.getElementById('ai-bar').style.display = 'none';
+});
+
+// ── Lightbox ──
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;');
+}
+
+SmartChat.scrollToBottom(container);
+</script>
+{% endblock %}

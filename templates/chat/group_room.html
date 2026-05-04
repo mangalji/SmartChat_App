@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} — SmartChat{% endblock %}
+
+{% block content %}
+<div class="sc-chat-layout">
+
+  {% include "chat/_sidebar.html" %}
+
+  <div class="sc-chat-area">
+
+    <!-- Header -->
+    <div class="sc-chat-header">
+      <div class="sc-avatar sc-avatar-group">
+        <i class="bi bi-people-fill" style="font-size:18px"></i>
+      </div>
+      <div style="flex:1">
+        <div class="fw-semibold" style="font-size:0.95rem">{{ group.name }}</div>
+        <div id="group-status" style="font-size:0.75rem;color:var(--sc-text-muted)">
+          {{ members.count }} member{{ members.count|pluralize }}
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'chat:group_media_gallery' group.pk %}" class="sc-icon-btn" title="Shared Media">
+          <i class="bi bi-images"></i>
+        </a>
+        <button class="sc-icon-btn" id="ai-suggest-btn" title="AI Suggest">
+          <i class="bi bi-stars"></i>
+        </button>
+        <label class="sc-icon-btn" for="media-upload" title="Attach File" style="margin:0;cursor:pointer">
+          <i class="bi bi-paperclip"></i>
+        </label>
+        <input type="file" id="media-upload" class="d-none"
+               accept="image/jpeg,image/png,image/gif,image/webp,.pdf,.doc,.docx,.zip,.txt" />
+        <button class="sc-icon-btn" data-bs-toggle="offcanvas"
+                data-bs-target="#groupPanel" title="Group Info">
+          <i class="bi bi-info-circle"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="sc-messages" id="messages-container">
+      {% for msg in history %}
+        {% with isMine=msg.sender == request.user %}
+        <div class="sc-msg-row {% if isMine %}sent{% else %}received{% endif %}" data-id="{{ msg.id }}">
+          {% if not isMine %}
+            <div class="sc-avatar me-2"
+                 style="width:28px;height:28px;font-size:11px;align-self:flex-end;flex-shrink:0">
+              {{ msg.sender.full_name|slice:":1"|upper }}
+            </div>
+          {% endif %}
+          <div class="sc-bubble {% if isMine %}sent{% else %}received{% endif %}">
+            {% if not isMine %}
+              <div style="font-size:0.7rem;font-weight:700;margin-bottom:3px;opacity:0.65">
+                {{ msg.sender.full_name }}
+              </div>
+            {% endif %}
+            {% if msg.media %}
+              {% if msg.media_type == 'image' %}
+                <img src="{{ msg.media.url }}" class="sc-media-thumb"
+                     onclick="openLightbox('{{ msg.media.url }}')" alt="Image" />
+              {% else %}
+                <a href="{{ msg.media.url }}" target="_blank"
+                   class="sc-file-pill text-decoration-none" style="color:inherit">
+                  {{ msg.media.name|slice:"12:"|default:"File" }}
+                </a>
+              {% endif %}
+            {% else %}
+              {{ msg.body|linebreaksbr }}
+            {% endif %}
+            <span class="sc-time">{{ msg.timestamp|date:"h:i A" }}</span>
+          </div>
+        </div>
+        {% endwith %}
+      {% empty %}
+        <div class="sc-empty-chat" style="flex:1">
+          <div class="sc-empty-icon"><i class="bi bi-people"></i></div>
+          <p style="font-size:0.85rem">Be the first to say something!</p>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Typing -->
+    <div id="typing-bar" style="display:none;padding:4px 20px;font-size:0.78rem;color:var(--sc-text-muted)">
+      <span id="typing-name"></span> is typing
+      <span class="sc-typing-dots"><span>.</span><span>.</span><span>.</span></span>
+    </div>
+
+    <!-- Upload progress -->
+    <div id="upload-progress" style="display:none" class="px-4 py-1">
+      <div class="progress" style="height:3px;background:var(--sc-surface-2)">
+        <div class="progress-bar bg-info" id="upload-bar" style="width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+
+    <!-- AI bar -->
+    <div class="sc-ai-bar" id="ai-bar" style="display:none">
+      <span class="sc-ai-badge"><i class="bi bi-stars me-1"></i>AI</span>
+      <span class="sc-ai-suggestion" id="ai-text">Generating…</span>
+      <button class="btn sc-btn-outline btn-sm py-0 px-2" id="ai-use-btn">Use</button>
+      <button class="btn sc-btn-ghost  btn-sm py-0 px-2" id="ai-dismiss-btn">✕</button>
+    </div>
+
+    <!-- Input -->
+    <div class="sc-input-bar">
+      <textarea class="form-control sc-msg-input" id="msg-input"
+                rows="1" placeholder="Message {{ group.name }}…"></textarea>
+      <button class="sc-send-btn" id="send-btn"><i class="bi bi-send-fill"></i></button>
+    </div>
+  </div>
+
+  <!-- ═══ GROUP INFO OFFCANVAS ═══ -->
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="groupPanel"
+       style="background:var(--sc-surface);border-left:1px solid var(--sc-border);width:290px">
+    <div class="offcanvas-header" style="border-bottom:1px solid var(--sc-border)">
+      <h6 class="offcanvas-title fw-bold">{{ group.name }}</h6>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-0">
+
+      {% if group.description %}
+        <div class="p-3" style="border-bottom:1px solid var(--sc-border);font-size:0.85rem;color:var(--sc-text-muted)">
+          {{ group.description }}
+        </div>
+      {% endif %}
+
+      <!-- Members list -->
+      <div class="p-3" style="border-bottom:1px solid var(--sc-border)">
+        <p class="sc-label mb-2">Members ({{ members.count }})</p>
+        {% for m in members %}
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <div class="sc-avatar" style="width:30px;height:30px;font-size:12px;flex-shrink:0">
+              {{ m.user.full_name|slice:":1"|upper }}
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                {{ m.user.full_name }}{% if m.user == request.user %} (you){% endif %}
+              </div>
+              <div style="font-size:0.72rem;color:var(--sc-text-muted)">{{ m.role }}</div>
+            </div>
+            {% if membership.role == 'admin' and m.user != request.user %}
+              <form method="post" action="{% url 'chat:remove_member' group.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="user_id" value="{{ m.user.pk }}" />
+                <button type="submit" class="sc-icon-btn border-0"
+                        style="width:26px;height:26px;font-size:13px;color:var(--sc-danger)"
+                        onclick="return confirm('Remove {{ m.user.full_name }}?')">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Add member (admin only) -->
+      {% if membership.role == 'admin' and non_members %}
+        <div class="p-3" style="border-bottom:1px solid var(--sc-border)">
+          <p class="sc-label mb-2">Add Member</p>
+          <form method="post" action="{% url 'chat:add_member' group.pk %}">
+            {% csrf_token %}
+            <select name="user_id" class="form-select sc-input mb-2" style="font-size:0.82rem">
+              <option value="">Select user…</option>
+              {% for u in non_members %}
+                <option value="{{ u.pk }}">{{ u.full_name }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn sc-btn-primary w-100 btn-sm">
+              <i class="bi bi-person-plus me-1"></i>Add
+            </button>
+          </form>
+        </div>
+      {% endif %}
+
+      <!-- Leave group -->
+      <div class="p-3">
+        <form method="post" action="{% url 'chat:leave_group' group.pk %}"
+              onsubmit="return confirm('Leave this group?')">
+          {% csrf_token %}
+          <button type="submit" class="btn w-100 btn-sm"
+                  style="background:transparent;border:1px solid var(--sc-danger);
+                         color:var(--sc-danger);border-radius:8px;font-size:0.85rem">
+            <i class="bi bi-box-arrow-left me-1"></i>Leave Group
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;
+            align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="lightbox-img" src="" style="max-width:92vw;max-height:90vh;border-radius:8px"
+       onclick="event.stopPropagation()" />
+  <button onclick="closeLightbox()"
+          style="position:fixed;top:20px;right:24px;background:none;border:none;
+                 color:#fff;font-size:2rem;cursor:pointer">×</button>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.sc-file-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(0,0,0,0.15); border-radius: 8px;
+  padding: 8px 12px; font-size: 0.85rem;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.sc-file-pill::before { content: "📎"; }
+.sc-typing-dots span { animation: blink 1.2s infinite; display: inline-block; }
+.sc-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.sc-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ME_ID    = {{ request.user.pk }};
+const GROUP_ID = {{ group.pk }};
+const WS_URL   = `ws://${location.host}/ws/group/${GROUP_ID}/`;
+const CSRF     = SmartChat.getCookie('csrftoken');
+const container = document.getElementById('messages-container');
+const input     = document.getElementById('msg-input');
+let typingTimer, socket;
+
+function connectWS() {
+  socket = new WebSocket(WS_URL);
+  socket.onopen  = () => SmartChat.scrollToBottom(container);
+  socket.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if      (data.type === 'message')      appendBubble(data);
+    else if (data.type === 'typing')       handleTyping(data);
+    else if (data.type === 'member_event') handleMemberEvent(data);
+  };
+  socket.onclose = () => setTimeout(connectWS, 2000);
+}
+connectWS();
+
+function sendMessage() {
+  const body = input.value.trim();
+  if (!body || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: 'message', body }));
+  input.value = ''; input.style.height = 'auto';
+}
+
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+input.addEventListener('input', () => {
+  if (socket.readyState === WebSocket.OPEN)
+    socket.send(JSON.stringify({ type: 'typing', is_typing: true }));
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    if (socket.readyState === WebSocket.OPEN)
+      socket.send(JSON.stringify({ type: 'typing', is_typing: false }));
+  }, 1500);
+});
+
+let typingHide;
+function handleTyping(data) {
+  const bar  = document.getElementById('typing-bar');
+  const name = document.getElementById('typing-name');
+  clearTimeout(typingHide);
+  if (data.is_typing) {
+    name.textContent = data.name;
+    bar.style.display = 'block';
+    typingHide = setTimeout(() => { bar.style.display = 'none'; }, 3000);
+  } else { bar.style.display = 'none'; }
+}
+
+function handleMemberEvent(data) {
+  const sys = document.createElement('div');
+  sys.className = 'sc-date-divider';
+  sys.innerHTML = `<span>${escHtml(data.name)} ${data.action}</span>`;
+  container.appendChild(sys);
+  SmartChat.scrollToBottom(container);
+}
+
+function appendBubble(data) {
+  const isMine = data.sender_id === ME_ID;
+  const time   = new Date(data.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+  const row    = document.createElement('div');
+  row.className = `sc-msg-row ${isMine ? 'sent' : 'received'}`;
+  row.dataset.id = data.id;
+
+  let inner = '';
+  if (data.media_url) {
+    inner = data.media_type === 'image'
+      ? `<img src="${data.media_url}" class="sc-media-thumb" onclick="openLightbox('${data.media_url}')" />`
+      : `<a href="${data.media_url}" target="_blank" class="sc-file-pill" style="color:inherit">${escHtml(data.file_name||'File')}</a>`;
+  } else { inner = escHtml(data.body).replace(/\n/g,'<br>'); }
+
+  const avatar   = isMine ? '' :
+    `<div class="sc-avatar me-2" style="width:28px;height:28px;font-size:11px;align-self:flex-end;flex-shrink:0">
+       ${escHtml(data.sender_name[0].toUpperCase())}
+     </div>`;
+  const nameTag  = isMine ? '' :
+    `<div style="font-size:0.7rem;font-weight:700;margin-bottom:3px;opacity:0.65">${escHtml(data.sender_name)}</div>`;
+
+  row.innerHTML = `${avatar}
+    <div class="sc-bubble ${isMine?'sent':'received'}">
+      ${nameTag}${inner}
+      <span class="sc-time">${time}</span>
+    </div>`;
+
+  container.appendChild(row);
+  SmartChat.scrollToBottom(container);
+}
+
+// Media upload
+document.getElementById('media-upload').addEventListener('change', async function () {
+  const file = this.files[0];
+  if (!file) return;
+  if (file.size > 10*1024*1024) { SmartChat.toast('Max 10 MB','error'); return; }
+
+  const prog = document.getElementById('upload-progress');
+  const bar  = document.getElementById('upload-bar');
+  prog.style.display = 'block'; bar.style.width = '40%';
+
+  const fd = new FormData();
+  fd.append('file', file); fd.append('group_id', GROUP_ID);
+
+  try {
+    const res  = await fetch('{% url "chat:upload_media" %}', {
+      method:'POST', headers:{'X-CSRFToken':CSRF}, body:fd
+    });
+    bar.style.width = '100%';
+    const data = await res.json();
+    if (data.error) { SmartChat.toast(data.error,'error'); }
+    else {
+      appendBubble({...data, type:'message', body:'', sender_name:'You'});
+      if (socket.readyState === WebSocket.OPEN)
+        socket.send(JSON.stringify({type:'media_notify',...data}));
+    }
+  } catch { SmartChat.toast('Upload failed','error'); }
+  finally { setTimeout(()=>{prog.style.display='none';bar.style.width='0';},600); this.value=''; }
+});
+
+// AI suggest
+document.getElementById('ai-suggest-btn').addEventListener('click', async () => {
+  const bar  = document.getElementById('ai-bar');
+  const text = document.getElementById('ai-text');
+  bar.style.display = 'flex'; text.textContent = 'Generating…';
+  const bubbles = [...container.querySelectorAll('.sc-bubble')].slice(-6);
+  const context = bubbles.map(b => {
+    const c = b.cloneNode(true); c.querySelectorAll('.sc-time').forEach(t=>t.remove());
+    return c.textContent.trim();
+  }).filter(Boolean).join(' | ');
+  try {
+    const res = await fetch('{% url "chat:ai_suggest" %}', {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body:JSON.stringify({context, other_name:'{{ group.name }}'})
+    });
+    const d = await res.json();
+    text.textContent = d.suggestion || 'Could not generate.';
+  } catch { text.textContent = 'AI unavailable.'; }
+});
+document.getElementById('ai-use-btn').addEventListener('click', () => {
+  input.value = document.getElementById('ai-text').textContent;
+  document.getElementById('ai-bar').style.display = 'none';
+  input.focus();
+});
+document.getElementById('ai-dismiss-btn').addEventListener('click', () => {
+  document.getElementById('ai-bar').style.display = 'none';
+});
+
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeLightbox(); });
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+SmartChat.scrollToBottom(container);
+</script>
+{% endblock %}

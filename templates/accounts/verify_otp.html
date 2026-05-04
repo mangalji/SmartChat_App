@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Verify OTP — SmartChat{% endblock %}
+
+{% block content %}
+<div class="sc-auth-wrap">
+  <div class="sc-auth-card">
+
+    <div class="sc-auth-logo">
+      <i class="bi bi-shield-lock-fill"></i>
+    </div>
+    <h1 class="sc-auth-title">Verify OTP</h1>
+    <p class="sc-auth-sub">
+      We sent a 6-digit code to<br>
+      <strong style="color:var(--sc-text)">{{ email }}</strong>
+    </p>
+
+    <form method="post" novalidate id="otp-form">
+      {% csrf_token %}
+
+      <!-- 6 individual digit boxes — combined by JS into hidden field -->
+      <div class="sc-otp-group mb-2">
+        <input type="text" inputmode="numeric" maxlength="1" pattern="\d" class="form-control sc-input sc-otp-input" autocomplete="off" />
+        <input type="text" inputmode="numeric" maxlength="1" pattern="\d" class="form-control sc-input sc-otp-input" autocomplete="off" />
+        <input type="text" inputmode="numeric" maxlength="1" pattern="\d" class="form-control sc-input sc-otp-input" autocomplete="off" />
+        <input type="text" inputmode="numeric" maxlength="1" pattern="\d" class="form-control sc-input sc-otp-input" autocomplete="off" />
+        <input type="text" inputmode="numeric" maxlength="1" pattern="\d" class="form-control sc-input sc-otp-input" autocomplete="off" />
+        <input type="text" inputmode="numeric" maxlength="1" pattern="\d" class="form-control sc-input sc-otp-input" autocomplete="off" />
+      </div>
+
+      <!-- Hidden combined field submitted to Django -->
+      <input type="hidden" name="otp" id="otp-combined" />
+
+      {% if form.otp.errors %}
+        <div class="text-danger text-center mb-2" style="font-size:0.82rem">
+          {{ form.otp.errors.0 }}
+        </div>
+      {% endif %}
+
+      <!-- Countdown -->
+      <p class="text-center mb-3" style="font-size:0.82rem;color:var(--sc-text-muted)">
+        Code expires in <span id="countdown" style="color:var(--sc-accent);font-family:var(--sc-font-mono);font-weight:600">05:00</span>
+      </p>
+
+      <button type="submit" class="btn sc-btn-primary w-100 py-2 mb-3" id="verify-btn">
+        <i class="bi bi-check-circle me-2"></i>Verify OTP
+      </button>
+    </form>
+
+    <!-- Resend -->
+    <form method="post" action="{% url 'accounts:resend_otp' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn sc-btn-ghost w-100 py-2" id="resend-btn" disabled>
+        <i class="bi bi-arrow-repeat me-2"></i>Resend OTP
+        <span id="resend-timer" class="ms-1" style="font-size:0.8rem;color:var(--sc-text-muted)">(wait 30s)</span>
+      </button>
+    </form>
+
+    <p class="text-center mt-3 mb-0" style="font-size:0.82rem;color:var(--sc-text-muted)">
+      Wrong account?
+      {% if purpose == 'signup' %}
+        <a href="{% url 'accounts:signup' %}" class="text-accent text-decoration-none">Go back</a>
+      {% else %}
+        <a href="{% url 'accounts:login' %}" class="text-accent text-decoration-none">Go back</a>
+      {% endif %}
+    </p>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Countdown (5 min) ──
+(function () {
+  let total = 5 * 60;
+  const display = document.getElementById('countdown');
+  const verifyBtn = document.getElementById('verify-btn');
+  const t = setInterval(() => {
+    total--;
+    if (total <= 0) {
+      clearInterval(t);
+      display.textContent = '00:00';
+      display.style.color = 'var(--sc-danger)';
+      verifyBtn.disabled = true;
+      return;
+    }
+    const m = String(Math.floor(total / 60)).padStart(2, '0');
+    const s = String(total % 60).padStart(2, '0');
+    display.textContent = `${m}:${s}`;
+  }, 1000);
+})();
+
+// ── Resend cooldown (30s) ──
+(function () {
+  let wait = 30;
+  const btn   = document.getElementById('resend-btn');
+  const label = document.getElementById('resend-timer');
+  const t = setInterval(() => {
+    wait--;
+    label.textContent = wait > 0 ? `(wait ${wait}s)` : '';
+    if (wait <= 0) {
+      clearInterval(t);
+      btn.disabled = false;
+    }
+  }, 1000);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Chats — SmartChat{% endblock %}
+
+{% block content %}
+<div class="sc-chat-layout">
+
+  <!-- ═══════════ SIDEBAR ═══════════ -->
+  {% include "chat/_sidebar.html" %}
+
+  <!-- ═══════════ EMPTY STATE ═══════════ -->
+  <div class="sc-chat-area">
+    <div class="sc-empty-chat">
+      <div class="sc-empty-icon"><i class="bi bi-chat-dots"></i></div>
+      <p class="fw-semibold mb-1">Your conversations</p>
+      <p style="font-size:0.85rem;color:var(--sc-text-muted)">
+        Pick a contact from the sidebar to start chatting
+      </p>
+      <a href="{% url 'chat:create_group' %}" class="btn sc-btn-outline btn-sm mt-2">
+        <i class="bi bi-plus-circle me-1"></i>New Group
+      </a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Media — {{ other.full_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:860px">
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <a href="{% url 'chat:dm_room' other.pk %}" class="sc-icon-btn">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <div class="sc-avatar">{{ other.full_name|slice:":1"|upper }}</div>
+    <div>
+      <h5 class="fw-bold mb-0">Shared Media</h5>
+      <p class="mb-0" style="font-size:0.82rem;color:var(--sc-text-muted)">
+        With {{ other.full_name }}
+      </p>
+    </div>
+  </div>
+
+  {% if media_msgs %}
+    <!-- Images -->
+    {% with images=media_msgs|dictsort:"media_type" %}
+      {% comment %}Split images vs files{% endcomment %}
+    {% endwith %}
+
+    <div class="row g-2" id="gallery-grid">
+      {% for msg in media_msgs %}
+        {% if msg.media_type == 'image' %}
+          <div class="col-4 col-md-3">
+            <div class="sc-gallery-thumb" onclick="openLightbox('{{ msg.media.url }}')">
+              <img src="{{ msg.media.url }}" alt="Image"
+                   style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;
+                          transition:opacity 0.2s"
+                   onmouseover="this.style.opacity='0.8'"
+                   onmouseout="this.style.opacity='1'" />
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <!-- Files -->
+    {% for msg in media_msgs %}
+      {% if msg.media_type == 'file' %}
+        {% if forloop.first %}
+          <p class="sc-label mt-4 mb-2">Files</p>
+        {% endif %}
+        <a href="{{ msg.media.url }}" target="_blank" class="text-decoration-none">
+          <div class="sc-card p-3 mb-2 d-flex align-items-center gap-3"
+               style="transition:border-color 0.2s"
+               onmouseover="this.style.borderColor='var(--sc-accent-glow)'"
+               onmouseout="this.style.borderColor='var(--sc-border)'">
+            <div class="sc-icon-btn" style="pointer-events:none;color:var(--sc-accent)">
+              <i class="bi bi-file-earmark-text"></i>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.875rem;font-weight:600;color:var(--sc-text);
+                          white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                {{ msg.media.name|slice:"11:"|default:"File" }}
+              </div>
+              <div style="font-size:0.75rem;color:var(--sc-text-muted)">
+                {{ msg.timestamp|date:"d M Y, h:i A" }} · by {{ msg.sender.full_name }}
+              </div>
+            </div>
+            <i class="bi bi-download" style="color:var(--sc-text-muted)"></i>
+          </div>
+        </a>
+      {% endif %}
+    {% endfor %}
+
+  {% else %}
+    <div class="text-center py-5" style="color:var(--sc-text-muted)">
+      <div class="sc-empty-icon mx-auto mb-3"><i class="bi bi-images"></i></div>
+      <p>No media shared yet in this conversation.</p>
+      <a href="{% url 'chat:dm_room' other.pk %}" class="btn sc-btn-outline btn-sm mt-1">
+        Go back to chat
+      </a>
+    </div>
+  {% endif %}
+
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;
+            align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="lightbox-img" src=""
+       style="max-width:92vw;max-height:90vh;border-radius:8px;box-shadow:0 0 60px rgba(0,0,0,0.8)"
+       onclick="event.stopPropagation()" />
+  <button onclick="closeLightbox()"
+          style="position:fixed;top:20px;right:24px;background:none;border:none;
+                 color:#fff;font-size:2rem;cursor:pointer">×</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeLightbox(); });
+</script>
+{% endblock %}

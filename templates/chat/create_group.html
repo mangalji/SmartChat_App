@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}New Group — SmartChat{% endblock %}
+
+{% block content %}
+<div class="sc-auth-wrap" style="align-items:flex-start;padding-top:40px">
+  <div class="sc-auth-card" style="max-width:520px">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <a href="{% url 'chat:group_list' %}" class="sc-icon-btn">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <div>
+        <h5 class="fw-bold mb-0">Create Group</h5>
+        <p class="mb-0" style="font-size:0.82rem;color:var(--sc-text-muted)">Set up a new group chat</p>
+      </div>
+    </div>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="mb-3">
+        <label class="sc-label">Group Name *</label>
+        <input type="text" name="name" class="form-control sc-input"
+               placeholder="e.g. Project Alpha, Family, Dev Team"
+               required autofocus />
+      </div>
+
+      <div class="mb-3">
+        <label class="sc-label">Description <span style="color:var(--sc-text-muted);font-weight:400;text-transform:none">(optional)</span></label>
+        <textarea name="description" class="form-control sc-input" rows="2"
+                  placeholder="What's this group about?"></textarea>
+      </div>
+
+      <div class="mb-4">
+        <label class="sc-label">Add Members</label>
+        <div class="sc-card p-2" style="max-height:220px;overflow-y:auto">
+          {% for u in all_users %}
+            <label class="d-flex align-items-center gap-3 p-2 rounded"
+                   style="cursor:pointer;transition:background 0.15s"
+                   onmouseover="this.style.background='var(--sc-surface-2)'"
+                   onmouseout="this.style.background=''">
+              <input type="checkbox" name="members" value="{{ u.pk }}"
+                     class="form-check-input mt-0"
+                     style="width:16px;height:16px;accent-color:var(--sc-accent);flex-shrink:0" />
+              <div class="sc-avatar" style="width:32px;height:32px;font-size:13px;flex-shrink:0">
+                {{ u.full_name|slice:":1"|upper }}
+              </div>
+              <div>
+                <div style="font-size:0.875rem;font-weight:600">{{ u.full_name }}</div>
+                <div style="font-size:0.75rem;color:var(--sc-text-muted)">{{ u.email }}</div>
+              </div>
+            </label>
+          {% empty %}
+            <p class="text-center py-3 mb-0" style="color:var(--sc-text-muted);font-size:0.85rem">
+              No other users to add
+            </p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn sc-btn-primary w-100 py-2">
+        <i class="bi bi-check-circle me-2"></i>Create Group
+      </button>
+    </form>
+
+  </div>
+</div>
+{% endblock %}

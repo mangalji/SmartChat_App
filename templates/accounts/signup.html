@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Sign Up — SmartChat{% endblock %}
+
+{% block content %}
+<div class="sc-auth-wrap">
+  <div class="sc-auth-card">
+
+    <div class="sc-auth-logo">
+      <i class="bi bi-person-plus-fill"></i>
+    </div>
+    <h1 class="sc-auth-title">Create account</h1>
+    <p class="sc-auth-sub">Join SmartChat — takes 30 seconds</p>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <!-- Full name -->
+      <div class="mb-3">
+        <label class="sc-label">Full Name</label>
+        {{ form.full_name }}
+        {% if form.full_name.errors %}
+          <div class="text-danger mt-1" style="font-size:0.8rem">{{ form.full_name.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <!-- Email -->
+      <div class="mb-3">
+        <label class="sc-label">Email</label>
+        {{ form.email }}
+        {% if form.email.errors %}
+          <div class="text-danger mt-1" style="font-size:0.8rem">{{ form.email.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <!-- Phone -->
+      <div class="mb-3">
+        <label class="sc-label">Phone <span style="color:var(--sc-text-muted);font-weight:400;text-transform:none">(optional)</span></label>
+        {{ form.phone }}
+        {% if form.phone.errors %}
+          <div class="text-danger mt-1" style="font-size:0.8rem">{{ form.phone.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <!-- Password -->
+      <div class="mb-3">
+        <label class="sc-label">Password</label>
+        {{ form.password }}
+        {% if form.password.errors %}
+          <div class="text-danger mt-1" style="font-size:0.8rem">{{ form.password.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <!-- Confirm password -->
+      <div class="mb-4">
+        <label class="sc-label">Confirm Password</label>
+        {{ form.confirm_password }}
+        {% if form.confirm_password.errors %}
+          <div class="text-danger mt-1" style="font-size:0.8rem">{{ form.confirm_password.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      {% if form.non_field_errors %}
+        <div class="alert sc-card border-danger text-danger p-2 mb-3" style="font-size:0.85rem">
+          {{ form.non_field_errors.0 }}
+        </div>
+      {% endif %}
+
+      <button type="submit" class="btn sc-btn-primary w-100 py-2 mb-3">
+        <i class="bi bi-send me-2"></i>Send OTP & Continue
+      </button>
+
+      <p class="text-center mb-0" style="font-size:0.875rem;color:var(--sc-text-muted)">
+        Already have an account?
+        <a href="{% url 'accounts:login' %}" class="text-accent text-decoration-none fw-500">Login</a>
+      </p>
+    </form>
+
+  </div>
+</div>
+{% endblock %}

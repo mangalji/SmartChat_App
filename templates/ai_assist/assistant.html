@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}AI Assistant — SmartChat{% endblock %}
+
+{% block content %}
+<div class="sc-chat-layout">
+
+  <!-- Left panel — quick prompts -->
+  <div class="sc-sidebar" style="width:260px;min-width:260px">
+    <div class="sc-sidebar-header">
+      <span class="sc-sidebar-title">
+        <i class="bi bi-stars me-2 text-accent"></i>AI Assistant
+      </span>
+    </div>
+    <div class="sc-contacts">
+      <p class="sc-label px-2 pt-3 mb-2">Quick Prompts</p>
+
+      {% for prompt in prompts %}
+        <button class="sc-contact-item border-0 w-100 text-start quick-prompt"
+                data-prompt="{{ prompt.text }}"
+                style="background:none">
+          <div class="sc-icon-btn" style="width:34px;height:34px;font-size:16px;pointer-events:none;flex-shrink:0">
+            <i class="bi bi-{{ prompt.icon }}"></i>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="sc-contact-name" style="font-size:0.84rem">{{ prompt.label }}</div>
+            <div class="sc-contact-preview">{{ prompt.hint }}</div>
+          </div>
+        </button>
+      {% endfor %}
+
+      <hr class="sc-divider mx-2 my-3" />
+
+      <p class="sc-label px-2 mb-2">Language</p>
+      <div class="px-2 d-flex gap-2">
+        <button id="lang-en" class="btn sc-btn-primary btn-sm flex-1 lang-btn active-lang">EN</button>
+        <button id="lang-hi" class="btn sc-btn-ghost  btn-sm flex-1 lang-btn">HI</button>
+      </div>
+
+      <hr class="sc-divider mx-2 my-3" />
+      <div class="px-2">
+        <button id="clear-chat" class="btn sc-btn-ghost btn-sm w-100">
+          <i class="bi bi-trash me-1"></i>Clear Chat
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main AI chat -->
+  <div class="sc-chat-area">
+
+    <!-- Header -->
+    <div class="sc-chat-header">
+      <div class="sc-avatar" style="background:linear-gradient(135deg,#a855f7,#6366f1);color:#fff">
+        <i class="bi bi-stars" style="font-size:18px"></i>
+      </div>
+      <div style="flex:1">
+        <div class="fw-semibold" style="font-size:0.95rem">SmartChat AI</div>
+        <div id="ai-status" style="font-size:0.75rem;color:var(--sc-success)">
+          <span class="sc-online-dot"></span> Ready
+        </div>
+      </div>
+      <span class="sc-ai-badge">Gemini 1.5 Flash</span>
+    </div>
+
+    <!-- Messages -->
+    <div class="sc-messages" id="ai-messages">
+      <!-- Welcome message -->
+      <div class="sc-msg-row received">
+        <div class="sc-bubble received">
+          👋 Hi <strong>{{ request.user.full_name }}</strong>! I'm your SmartChat AI assistant.<br><br>
+          I can help you compose messages, answer questions, and suggest replies — in
+          <strong>English</strong> or <strong>Hindi</strong>.<br><br>
+          What would you like to do?
+          <span class="sc-time">now</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thinking indicator -->
+    <div id="thinking-bar" style="display:none;padding:6px 20px;font-size:0.78rem;color:var(--sc-text-muted)">
+      <span class="sc-typing-dots">
+        AI is thinking<span>.</span><span>.</span><span>.</span>
+      </span>
+    </div>
+
+    <!-- Input -->
+    <div class="sc-input-bar">
+      <textarea class="form-control sc-msg-input" id="ai-input"
+                rows="1" placeholder="Ask me anything… (English या हिंदी में)"></textarea>
+      <button class="sc-send-btn" id="ai-send-btn">
+        <i class="bi bi-send-fill"></i>
+      </button>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.sc-typing-dots span { animation: blink 1.2s infinite; display:inline-block; }
+.sc-typing-dots span:nth-child(2) { animation-delay:.2s; }
+.sc-typing-dots span:nth-child(3) { animation-delay:.4s; }
+@keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+.active-lang { background:var(--sc-accent)!important; color:#000!important; }
+.quick-prompt:hover { background:var(--sc-surface-2)!important; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF      = SmartChat.getCookie('csrftoken');
+const container = document.getElementById('ai-messages');
+const input     = document.getElementById('ai-input');
+const thinking  = document.getElementById('thinking-bar');
+const status    = document.getElementById('ai-status');
+let history     = [];
+let forceLang   = null;  // 'en' | 'hi' | null
+
+// ── Send message ──
+async function sendMessage(text) {
+  text = text || input.value.trim();
+  if (!text) return;
+
+  appendBubble('user', text);
+  history.push({ role: 'user', text });
+  input.value = '';
+  input.style.height = 'auto';
+
+  thinking.style.display = 'block';
+  status.innerHTML = '<span class="sc-online-dot" style="background:var(--sc-warning)"></span> Thinking…';
+  SmartChat.scrollToBottom(container);
+
+  let messageToSend = text;
+  if (forceLang === 'hi') messageToSend = `[Reply in Hindi] ${text}`;
+  if (forceLang === 'en') messageToSend = `[Reply in English] ${text}`;
+
+  try {
+    const res  = await fetch('{% url "ai_assist:chat" %}', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body:    JSON.stringify({ message: messageToSend, history }),
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      appendBubble('ai', '⚠️ ' + data.error);
+    } else {
+      appendBubble('ai', data.reply);
+      history.push({ role: 'ai', text: data.reply });
+    }
+  } catch (e) {
+    appendBubble('ai', '⚠️ Network error. Please try again.');
+  } finally {
+    thinking.style.display = 'none';
+    status.innerHTML = '<span class="sc-online-dot"></span> Ready';
+  }
+}
+
+// ── Append bubble ──
+function appendBubble(role, text) {
+  const isMine = role === 'user';
+  const now    = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true });
+
+  const row = document.createElement('div');
+  row.className = `sc-msg-row ${isMine ? 'sent' : 'received'}`;
+
+  // Render newlines and basic markdown-style bold
+  const rendered = escHtml(text)
+    .replace(/\n/g, '<br>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  row.innerHTML = `
+    <div class="sc-bubble ${isMine ? 'sent' : 'received'}">
+      ${rendered}
+      <span class="sc-time">${now}</span>
+    </div>`;
+
+  container.appendChild(row);
+  SmartChat.scrollToBottom(container);
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Event listeners ──
+document.getElementById('ai-send-btn').addEventListener('click', () => sendMessage());
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// ── Quick prompts ──
+document.querySelectorAll('.quick-prompt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    input.value = btn.dataset.prompt;
+    input.focus();
+    SmartChat.autoResize(input);
+  });
+});
+
+// ── Language toggle ──
+document.getElementById('lang-en').addEventListener('click', function () {
+  forceLang = forceLang === 'en' ? null : 'en';
+  this.classList.toggle('active-lang', forceLang === 'en');
+  document.getElementById('lang-hi').classList.remove('active-lang');
+});
+document.getElementById('lang-hi').addEventListener('click', function () {
+  forceLang = forceLang === 'hi' ? null : 'hi';
+  this.classList.toggle('active-lang', forceLang === 'hi');
+  document.getElementById('lang-en').classList.remove('active-lang');
+});
+
+// ── Clear chat ──
+document.getElementById('clear-chat').addEventListener('click', () => {
+  if (!confirm('Clear conversation?')) return;
+  history = [];
+  container.innerHTML = '';
+  appendBubble('ai', 'Chat cleared! How can I help you?');
+});
+</script>
+{% endblock %}
