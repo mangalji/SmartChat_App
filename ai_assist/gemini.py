@@ -136,14 +136,14 @@ def _call_gemini(prompt: str, fallback: str = '') -> str:
 
             return text if text else fallback
 
-    except RuntimeError as e:
-        # API key missing / SDK not installed — use mock
-        logger.warning(f'Gemini unavailable: {e}')
-        return fallback
+        except RuntimeError as e:
+            # API key missing / SDK not installed — use mock
+            logger.warning(f'Gemini unavailable: {e}')
+            return fallback
 
-    except Exception as e:
-        logger.error(f'Gemini API error: {e}')
-        return fallback
+        except Exception as e:
+            logger.error(f'Gemini API error: {e}')
+            return fallback
 
 
 def _mock_suggestion(context: str, lang: str) -> str:
