@@ -346,13 +346,18 @@ def media_gallery(request, user_id):
     me    = request.user
     other = get_object_or_404(User, pk=user_id)
 
-    media_msgs = Message.objects.filter(
+    from django.core.paginator import Paginator
+    media_qs = Message.objects.filter(
         Q(sender=me, receiver=other) | Q(sender=other, receiver=me)
     ).exclude(media='').order_by('-timestamp').select_related('sender')
 
+    paginator = Paginator(media_qs, 24) # 24 per page
+    page_num = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_num)
+
     return render(request, 'chat/media_gallery.html', {
         'other':      other,
-        'media_msgs': media_msgs,
+        'media_msgs': page_obj,
     })
 
 
@@ -369,13 +374,18 @@ def group_media_gallery(request, group_id):
         messages.error(request, 'Not a member.')
         return redirect('chat:group_list')
 
-    media_msgs = GroupMessage.objects.filter(group=group).exclude(
+    from django.core.paginator import Paginator
+    media_qs = GroupMessage.objects.filter(group=group).exclude(
         media=''
     ).order_by('-timestamp').select_related('sender')
 
+    paginator = Paginator(media_qs, 24)
+    page_num = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_num)
+
     return render(request, 'chat/group_media_gallery.html', {
         'group':      group,
-        'media_msgs': media_msgs,
+        'media_msgs': page_obj,
     })
 
 
@@ -522,25 +532,42 @@ def _fetch_context_from_db(user, last_msg_id):
 # HELPERS
 # ──────────────────────────────────────────────
 def _build_conversations(me):
-    chatted = Message.objects.filter(
-        Q(sender=me) | Q(receiver=me)
-    ).values_list('sender_id', 'receiver_id')
+    """
+    Optimized: Fetches all users you've chatted with and their latest message
+    in a single efficient query.
+    """
+    from django.db.models import OuterRef, Subquery, Max
 
-    talked_to_ids = set()
-    for s, r in chatted:
-        talked_to_ids.add(r if s == me.pk else s)
+    # Subquery to find the ID of the last message between 'me' and 'other'
+    last_msg_sq = Message.objects.filter(
+        Q(sender=me, receiver=OuterRef('pk')) | Q(sender=OuterRef('pk'), receiver=me)
+    ).order_by('-timestamp').values('id')[:1]
+
+    # Find users who have either sent or received a message from 'me'
+    sent_to = Message.objects.filter(sender=me).values_list('receiver_id', flat=True)
+    received_from = Message.objects.filter(receiver=me).values_list('sender_id', flat=True)
+    talked_to_ids = set(list(sent_to) + list(received_from))
+
+    if not talked_to_ids:
+        return []
+
+    # Fetch users with their last message pre-fetched
+    users = User.objects.filter(pk__in=talked_to_ids, is_active=True).annotate(
+        last_msg_id=Subquery(last_msg_sq)
+    ).select_related('avatar') # Assuming avatar is a field, not a separate table
+
+    # Get the actual message objects for the IDs found
+    msg_ids = [u.last_msg_id for u in users if u.last_msg_id]
+    msgs_map = {m.id: m for m in Message.objects.filter(id__in=msg_ids)}
 
     result = []
-    for uid in talked_to_ids:
-        try:
-            other = User.objects.get(pk=uid, is_active=True)
-        except User.DoesNotExist:
-            continue
-        last_msg = Message.objects.filter(
-            Q(sender=me, receiver=other) | Q(sender=other, receiver=me)
-        ).order_by('-timestamp').first()
-        result.append({'user': other, 'last_msg': last_msg})
+    for u in users:
+        result.append({
+            'user': u,
+            'last_msg': msgs_map.get(u.last_msg_id)
+        })
 
+    # Sort by message timestamp
     result.sort(
         key=lambda c: c['last_msg'].timestamp if c['last_msg'] else timezone.now(),
         reverse=True,
@@ -549,9 +576,10 @@ def _build_conversations(me):
 
 
 def _unread_counts(me):
-    """Return {user_id: unread_count} for sidebar badges."""
+    """Optimized unread count aggregation."""
     from django.db.models import Count
-    rows = Message.objects.filter(
-        receiver=me, is_read=False
-    ).values('sender_id').annotate(cnt=Count('id'))
-    return {r['sender_id']: r['cnt'] for r in rows}
+    return dict(
+        Message.objects.filter(receiver=me, is_read=False)
+        .values_list('sender_id')
+        .annotate(cnt=Count('id'))
+    )

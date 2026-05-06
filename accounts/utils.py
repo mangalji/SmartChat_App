@@ -13,8 +13,10 @@ def generate_otp(length=6):
     return ''.join(secrets.choice(string.digits) for _ in range(length))
 
 
+import threading
+
 def send_otp_email(user, otp_code, purpose):
-    """Send OTP to user's email via SMTP server."""
+    """Send OTP to user's email via SMTP server (Backgrounded)."""
     subject_map = {
         'signup': 'SmartChat — Verify your account',
         'login':  'SmartChat — Your login OTP',
@@ -32,13 +34,13 @@ Do not share it with anyone.
 
 — SmartChat Team
 """
-    send_mail(
-        subject,
-        message,
-        settings.DEFAULT_FROM_EMAIL,
-        [user.email],
-        fail_silently=False,
+    # Run in a separate thread to avoid blocking the view
+    email_thread = threading.Thread(
+        target=send_mail,
+        args=(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email]),
+        kwargs={'fail_silently': True}
     )
+    email_thread.start()
 
 
 def create_otp(user, purpose):

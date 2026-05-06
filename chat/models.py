@@ -21,8 +21,8 @@ class Message(models.Model):
         choices=[('image', 'Image'), ('file', 'File')],
         blank=True
     )
-    timestamp = models.DateTimeField(default=timezone.now)
-    is_read   = models.BooleanField(default=False)
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    is_read   = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         ordering = ['timestamp']
@@ -73,7 +73,7 @@ class GroupMessage(models.Model):
     body      = models.TextField(blank=True)
     media     = models.FileField(upload_to='group_media/', blank=True, null=True)
     media_type = models.CharField(max_length=10, choices=[('image', 'Image'), ('file', 'File')], blank=True)
-    timestamp = models.DateTimeField(default=timezone.now)
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
 
     class Meta:
         ordering = ['timestamp']
