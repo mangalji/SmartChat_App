@@ -46,7 +46,7 @@ def create_otp(user, purpose):
     Invalidate all previous OTPs for this user+purpose,
     create a fresh one, send it, and return the OTP instance.
     """
-    from .models import OTP
+    from accounts.models import OTP
 
     # Expire old OTPs
     OTP.objects.filter(user=user, purpose=purpose, is_used=False).update(is_used=True)
@@ -62,7 +62,7 @@ def verify_otp(user, code, purpose):
     Returns (True, None) on success.
     Returns (False, error_message) on failure.
     """
-    from .models import OTP
+    from accounts.models import OTP
 
     try:
         otp = OTP.objects.filter(

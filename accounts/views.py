@@ -5,8 +5,9 @@ from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 
-from .forms import SignupForm, LoginForm, OTPVerifyForm
-from .utils import create_otp, verify_otp
+from accounts.forms import SignupForm, LoginForm, OTPVerifyForm
+from accounts.utils import create_otp, verify_otp
+from accounts.models import OTP
 
 User = get_user_model()
 
@@ -184,7 +185,7 @@ def resend_otp_view(request):
         user = User.objects.get(pk=user_id)
 
         # Server-side cooldown: check when the last OTP was created
-        from .models import OTP
+        
         last_otp = OTP.objects.filter(
             user=user, purpose=purpose
         ).order_by('-created_at').first()
