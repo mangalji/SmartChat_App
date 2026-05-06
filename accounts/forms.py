@@ -20,7 +20,7 @@ phone_validator = RegexValidator(
 class SignupForm(forms.Form):
     full_name = forms.CharField(
         min_length=2,
-        max_length=150,
+        max_length=70,
         widget=forms.TextInput(attrs={
             'class': 'form-control sc-input',
             'placeholder': 'Your full name',
@@ -33,7 +33,7 @@ class SignupForm(forms.Form):
         }
     )
     email = forms.EmailField(
-        max_length=254,
+        max_length=70,
         widget=forms.EmailInput(attrs={
             'class': 'form-control sc-input',
             'placeholder': 'you@example.com',
@@ -46,7 +46,7 @@ class SignupForm(forms.Form):
     )
     phone = forms.CharField(
         required=False,
-        max_length=25,
+        max_length=15,
         widget=forms.TextInput(attrs={
             'class': 'form-control sc-input',
             'placeholder': '+91 98765 43210 (optional)',
