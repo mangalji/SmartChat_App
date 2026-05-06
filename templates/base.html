@@ -122,17 +122,98 @@
   {% block content %}{% endblock %}
 </main>
 
+<!-- Scheduled Messages Modal -->
+<div class="modal fade" id="globalScheduledModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="sc-auth-card p-4 w-100" style="max-height:80vh; overflow-y:auto">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h5 class="mb-0">Your Scheduled Messages</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div id="scheduled-messages-list">
+        <p class="text-center py-5 text-muted">Loading pending messages…</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- Auto-dismiss toasts -->
+<!-- Global Script -->
 <script>
+  // Helper for CSRF
+  const CSRF_TOKEN = '{% csrf_token %}' ? '{{ csrf_token }}' : '';
+
+  // Auto-dismiss toasts
   document.querySelectorAll('.toast').forEach(el => {
     setTimeout(() => {
       const toast = bootstrap.Toast.getOrCreateInstance(el);
       toast.hide();
     }, 4000);
   });
+
+  // Scheduled Messages View Logic
+  (function() {
+    const btn = document.getElementById('view-scheduled-btn');
+    if (!btn) return;
+
+    const modalEl = document.getElementById('globalScheduledModal');
+    const modal = new bootstrap.Modal(modalEl);
+    const listEl = document.getElementById('scheduled-messages-list');
+
+    btn.addEventListener('click', async () => {
+      modal.show();
+      await refreshScheduled();
+    });
+
+    async function refreshScheduled() {
+      listEl.innerHTML = '<p class="text-center py-5 text-muted">Loading pending messages…</p>';
+      try {
+        const res = await fetch('{% url "chat:list_scheduled" %}');
+        const data = await res.json();
+        
+        if (data.results.length === 0) {
+          listEl.innerHTML = '<p class="text-center py-5 text-muted">No pending messages scheduled.</p>';
+          return;
+        }
+
+        listEl.innerHTML = data.results.map(m => `
+          <div class="sc-card p-3 mb-2 d-flex justify-content-between align-items-center" id="sch-${m.id}">
+            <div style="flex:1; min-width:0">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-secondary" style="font-size:0.65rem">${m.is_group ? 'Group' : 'Direct'}</span>
+                <span class="fw-bold" style="font-size:0.85rem">${m.is_group ? '' : '@'}${m.target_name}</span>
+              </div>
+              <div class="text-truncate mb-1" style="font-size:0.9rem">${m.body}</div>
+              <div class="small text-muted"><i class="bi bi-clock me-1"></i>${new Date(m.scheduled_time).toLocaleString()}</div>
+            </div>
+            <button class="btn btn-sm text-danger border-0 p-2" onclick="cancelScheduled(${m.id})" title="Cancel">
+              <i class="bi bi-trash3 fs-5"></i>
+            </button>
+          </div>
+        `).join('');
+      } catch (err) {
+        listEl.innerHTML = '<p class="text-center py-5 text-danger">Failed to load messages.</p>';
+      }
+    }
+
+    window.cancelScheduled = async (id) => {
+      if (!confirm('Cancel this scheduled message?')) return;
+      try {
+        const res = await fetch(`/chat/scheduled-cancel/${id}/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        });
+        if (res.ok) {
+          document.getElementById('sch-' + id).remove();
+          if (listEl.children.length === 0) {
+            listEl.innerHTML = '<p class="text-center py-5 text-muted">No pending messages scheduled.</p>';
+          }
+        }
+      } catch (err) { alert('Failed to cancel.'); }
+    };
+  })();
 </script>
 
 {% block extra_js %}{% endblock %}

@@ -1,3 +1,4 @@
+import os
 from django.apps import AppConfig
 
 class SchedulerConfig(AppConfig):
@@ -6,5 +7,7 @@ class SchedulerConfig(AppConfig):
     verbose_name = 'Scheduler'
 
     def ready(self):
-        # Start APScheduler when Django boots (Phase 7)
-        pass
+        # Only start scheduler once, even with Django reloader
+        if os.environ.get('RUN_MAIN') == 'true' or not os.environ.get('DJANGO_SETTINGS_MODULE'):
+            from . import updater
+            updater.start()

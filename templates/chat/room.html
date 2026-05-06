@@ -86,6 +86,9 @@
     <div class="sc-input-bar">
       <textarea class="form-control sc-msg-input" id="msg-input"
                 rows="1" placeholder="Message {{ other.full_name }}…"></textarea>
+      <button class="sc-icon-btn mx-2" id="schedule-btn" title="Schedule Message">
+        <i class="bi bi-calendar-event"></i>
+      </button>
       <button class="sc-send-btn" id="send-btn" title="Send">
         <i class="bi bi-send-fill"></i>
       </button>
@@ -103,6 +106,21 @@
   <button onclick="closeLightbox()"
           style="position:fixed;top:20px;right:24px;background:none;border:none;
                  color:#fff;font-size:2rem;cursor:pointer;line-height:1">×</button>
+</div>
+
+<!-- Schedule Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="sc-auth-card p-4 w-100" style="max-width:400px">
+      <h5 class="mb-3">Schedule Message</h5>
+      <p class="sc-text-muted mb-3" style="font-size:0.85rem">Pick a date and time to send this message.</p>
+      <input type="datetime-local" id="schedule-time-input" class="form-control sc-input mb-4" />
+      <div class="d-flex gap-2">
+        <button class="btn sc-btn-outline w-100" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn sc-btn-primary w-100" id="confirm-schedule-btn">Schedule</button>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -320,6 +338,47 @@ document.getElementById('ai-use-btn').addEventListener('click', () => {
 });
 document.getElementById('ai-dismiss-btn').addEventListener('click', () => {
   document.getElementById('ai-bar').style.display = 'none';
+});
+
+// ── Scheduling ──
+const scheduleModal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+
+document.getElementById('schedule-btn').addEventListener('click', () => {
+  if (!input.value.trim()) {
+    SmartChat.toast('Type a message first!', 'warning'); return;
+  }
+  // Set default time to 1 hour from now
+  const now = new Date();
+  now.setHours(now.getHours() + 1);
+  now.setMinutes(0);
+  document.getElementById('schedule-time-input').value = now.toISOString().slice(0, 16);
+  scheduleModal.show();
+});
+
+document.getElementById('confirm-schedule-btn').addEventListener('click', async () => {
+  const body = input.value.trim();
+  const scheduled_time = document.getElementById('schedule-time-input').value;
+
+  if (!scheduled_time) return;
+
+  try {
+    const res = await fetch('{% url "chat:schedule_message" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ body, scheduled_time, user_id: OTHER_ID }),
+    });
+    const d = await res.json();
+    if (d.success) {
+      SmartChat.toast(d.message, 'success');
+      input.value = '';
+      input.style.height = 'auto';
+      scheduleModal.hide();
+    } else {
+      SmartChat.toast(d.error, 'error');
+    }
+  } catch {
+    SmartChat.toast('Failed to schedule message.', 'error');
+  }
 });
 
 // ── Lightbox ──

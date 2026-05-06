@@ -59,7 +59,7 @@ class DirectMessageConsumer(AsyncWebsocketConsumer):
                 'id':          msg.id,
                 'body':        body,
                 'sender_id':   self.me.pk,
-                'sender_name': self.me.full_name,
+                'sender_name': f'@{self.me.username}',
                 'timestamp':   msg.timestamp.isoformat(),
                 'media_url':   '',
                 'media_type':  '',
@@ -72,7 +72,7 @@ class DirectMessageConsumer(AsyncWebsocketConsumer):
                 'id':          data.get('id'),
                 'body':        '',
                 'sender_id':   self.me.pk,
-                'sender_name': self.me.full_name,
+                'sender_name': f'@{self.me.username}',
                 'timestamp':   data.get('timestamp', timezone.now().isoformat()),
                 'media_url':   data.get('media_url', ''),
                 'media_type':  data.get('media_type', 'file'),
@@ -154,7 +154,7 @@ class GroupChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_send(self.room, {
             'type':    'member_event',
             'user_id': self.me.pk,
-            'name':    self.me.full_name,
+            'name':    f'@{self.me.username}',
             'action':  'joined',
         })
 
@@ -178,7 +178,7 @@ class GroupChatConsumer(AsyncWebsocketConsumer):
                 'id':          msg.id,
                 'body':        body,
                 'sender_id':   self.me.pk,
-                'sender_name': self.me.full_name,
+                'sender_name': f'@{self.me.username}',
                 'timestamp':   msg.timestamp.isoformat(),
                 'media_url':   '',
                 'media_type':  '',
@@ -190,7 +190,7 @@ class GroupChatConsumer(AsyncWebsocketConsumer):
                 'id':          data.get('id'),
                 'body':        '',
                 'sender_id':   self.me.pk,
-                'sender_name': self.me.full_name,
+                'sender_name': f'@{self.me.username}',
                 'timestamp':   data.get('timestamp', timezone.now().isoformat()),
                 'media_url':   data.get('media_url', ''),
                 'media_type':  data.get('media_type', 'file'),
@@ -200,7 +200,7 @@ class GroupChatConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_send(self.room, {
                 'type':      'typing_indicator',
                 'user_id':   self.me.pk,
-                'name':      self.me.full_name,
+                'name':      f'@{self.me.username}',
                 'is_typing': data.get('is_typing', False),
             })
 

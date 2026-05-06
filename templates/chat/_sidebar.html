@@ -3,9 +3,14 @@
   <!-- Header -->
   <div class="sc-sidebar-header d-flex align-items-center justify-content-between">
     <span class="sc-sidebar-title">Messages</span>
-    <a href="{% url 'chat:create_group' %}" class="sc-icon-btn" title="New Group">
-      <i class="bi bi-people-fill"></i>
-    </a>
+    <div class="d-flex gap-1">
+      <button class="sc-icon-btn" id="view-scheduled-btn" title="Scheduled Messages">
+        <i class="bi bi-clock-history"></i>
+      </button>
+      <a href="{% url 'chat:create_group' %}" class="sc-icon-btn" title="New Group">
+        <i class="bi bi-people-fill"></i>
+      </a>
+    </div>
   </div>
 
   <!-- Search -->
@@ -17,97 +22,138 @@
 
   <div class="sc-contacts" id="contacts-list">
 
+    <!-- Search Results (Hidden by default) -->
+    <div id="search-results-section" style="display:none">
+      <p class="sc-label px-2 pt-3 mb-1">Search Results</p>
+      <div id="search-results-list"></div>
+      <div class="sc-divider my-2"></div>
+    </div>
+
     <!-- Recent DMs -->
     {% if conversations %}
-      <p class="sc-label px-2 pt-3 mb-1">Recent</p>
-      {% for c in conversations %}
-        {% with unread=unread_counts|default_if_none:'' %}
-        <a href="{% url 'chat:dm_room' c.user.pk %}"
-           class="sc-contact-item {% if request.resolver_match.kwargs.user_id == c.user.pk|stringformat:'s' %}active{% endif %}"
-           data-name="{{ c.user.full_name|lower }}">
-          <div class="position-relative">
-            <div class="sc-avatar">{{ c.user.full_name|slice:":1"|upper }}</div>
-          </div>
-          <div style="flex:1;min-width:0">
-            <div class="d-flex justify-content-between align-items-center">
-              <span class="sc-contact-name">{{ c.user.full_name }}</span>
-              {% if c.last_msg %}
-                <span style="font-size:0.68rem;color:var(--sc-text-muted)">
-                  {{ c.last_msg.timestamp|date:"h:i A" }}
-                </span>
-              {% endif %}
+      <div id="recent-section">
+        <p class="sc-label px-2 pt-3 mb-1">Recent</p>
+        {% for c in conversations %}
+          <a href="{% url 'chat:dm_room' c.user.pk %}"
+             class="sc-contact-item {% if request.resolver_match.kwargs.user_id == c.user.pk|stringformat:'s' %}active{% endif %}"
+             data-name="{{ c.user.full_name|lower }} {{ c.user.username|lower }}">
+            <div class="position-relative">
+              <div class="sc-avatar">{{ c.user.full_name|slice:":1"|upper }}</div>
             </div>
-            <div class="sc-contact-preview">
-              {% if c.last_msg %}
-                {% if c.last_msg.media %}
-                  <i class="bi bi-paperclip"></i> File
-                {% else %}
-                  {{ c.last_msg.body|truncatechars:28 }}
+            <div style="flex:1;min-width:0">
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="sc-contact-name">@{{ c.user.username }}</span>
+                {% if c.last_msg %}
+                  <span style="font-size:0.68rem;color:var(--sc-text-muted)">
+                    {{ c.last_msg.timestamp|date:"h:i A" }}
+                  </span>
                 {% endif %}
-              {% else %}
-                Start a conversation
-              {% endif %}
+              </div>
+              <div class="sc-contact-preview">
+                {% if c.last_msg %}
+                  {% if c.last_msg.media %}
+                    <i class="bi bi-paperclip"></i> File
+                  {% else %}
+                    {{ c.last_msg.body|truncatechars:28 }}
+                  {% endif %}
+                {% else %}
+                  Start a conversation
+                {% endif %}
+              </div>
             </div>
-          </div>
-        </a>
-        {% endwith %}
-      {% endfor %}
+          </a>
+        {% endfor %}
+      </div>
     {% endif %}
 
     <!-- Groups -->
     {% if my_groups %}
-      <p class="sc-label px-2 pt-3 mb-1">Groups</p>
-      {% for g in my_groups %}
-        <a href="{% url 'chat:group_room' g.pk %}"
-           class="sc-contact-item {% if request.resolver_match.kwargs.group_id == g.pk|stringformat:'s' %}active{% endif %}"
-           data-name="{{ g.name|lower }}">
-          <div class="sc-avatar sc-avatar-group">
-            <i class="bi bi-people-fill" style="font-size:15px"></i>
-          </div>
-          <div style="flex:1;min-width:0">
-            <div class="sc-contact-name">{{ g.name }}</div>
-            <div class="sc-contact-preview">{{ g.members.count }} member{{ g.members.count|pluralize }}</div>
-          </div>
-        </a>
-      {% endfor %}
+      <div id="groups-section">
+        <p class="sc-label px-2 pt-3 mb-1">Groups</p>
+        {% for g in my_groups %}
+          <a href="{% url 'chat:group_room' g.pk %}"
+             class="sc-contact-item {% if request.resolver_match.kwargs.group_id == g.pk|stringformat:'s' %}active{% endif %}"
+             data-name="{{ g.name|lower }}">
+            <div class="sc-avatar sc-avatar-group">
+              <i class="bi bi-people-fill" style="font-size:15px"></i>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div class="sc-contact-name">{{ g.name }}</div>
+              <div class="sc-contact-preview">{{ g.members.count }} member{{ g.members.count|pluralize }}</div>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
     {% endif %}
 
-    <!-- All Users -->
-    <p class="sc-label px-2 pt-3 mb-1">All Users</p>
-    {% for u in all_users %}
-      <a href="{% url 'chat:dm_room' u.pk %}"
-         class="sc-contact-item"
-         data-name="{{ u.full_name|lower }}">
-        <div class="sc-avatar">{{ u.full_name|slice:":1"|upper }}</div>
-        <div style="flex:1;min-width:0">
-          <div class="sc-contact-name">{{ u.full_name }}</div>
-          <div class="sc-contact-preview">{{ u.email }}</div>
-        </div>
-      </a>
-    {% empty %}
-      <p class="text-center py-3 mb-0" style="font-size:0.82rem;color:var(--sc-text-muted)">
-        No other users yet
+    {% if not conversations and not my_groups %}
+      <p id="no-chats-msg" class="text-center py-5 mb-0" style="font-size:0.85rem;color:var(--sc-text-muted)">
+        Search for a username<br>to start chatting!
       </p>
-    {% endfor %}
+    {% endif %}
 
   </div>
 </div>
 
 <script>
-document.getElementById('contact-search').addEventListener('input', function () {
-  const q = this.value.toLowerCase();
-  document.querySelectorAll('#contacts-list .sc-contact-item').forEach(el => {
-    el.style.display = el.dataset.name.includes(q) ? '' : 'none';
-  });
-  // Hide section labels too
-  document.querySelectorAll('#contacts-list .sc-label').forEach(label => {
-    let next = label.nextElementSibling;
-    let anyVisible = false;
-    while (next && !next.classList.contains('sc-label')) {
-      if (next.style.display !== 'none') anyVisible = true;
-      next = next.nextElementSibling;
+(function() {
+  const searchInput = document.getElementById('contact-search');
+  const resultsSection = document.getElementById('search-results-section');
+  const resultsList = document.getElementById('search-results-list');
+  const recentSection = document.getElementById('recent-section');
+  const groupsSection = document.getElementById('groups-section');
+  const noChatsMsg = document.getElementById('no-chats-msg');
+  
+  let searchTimeout;
+
+  searchInput.addEventListener('input', function () {
+    const q = this.value.trim().toLowerCase();
+    clearTimeout(searchTimeout);
+
+    if (q.length < 2) {
+      resultsSection.style.display = 'none';
+      if (recentSection) recentSection.style.display = '';
+      if (groupsSection) groupsSection.style.display = '';
+      if (noChatsMsg) noChatsMsg.style.display = '';
+      return;
     }
-    label.style.display = anyVisible ? '' : 'none';
+
+    // Local filtering for current chats
+    if (recentSection) {
+      recentSection.querySelectorAll('.sc-contact-item').forEach(el => {
+        el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+      });
+    }
+    if (groupsSection) {
+      groupsSection.querySelectorAll('.sc-contact-item').forEach(el => {
+        el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+      });
+    }
+
+    // Server-side search for new users
+    searchTimeout = setTimeout(async () => {
+      try {
+        const res = await fetch(`{% url 'chat:search_users' %}?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        
+        if (data.results.length > 0) {
+          resultsList.innerHTML = data.results.map(u => `
+            <a href="/chat/dm/${u.id}/" class="sc-contact-item">
+              <div class="sc-avatar">${u.full_name.charAt(0).toUpperCase()}</div>
+              <div style="flex:1;min-width:0">
+                <div class="sc-contact-name">@${u.username}</div>
+                <div class="sc-contact-preview">${u.full_name}</div>
+              </div>
+            </a>
+          `).join('');
+          resultsSection.style.display = 'block';
+        } else {
+          resultsSection.style.display = 'none';
+        }
+      } catch (err) {
+        console.error('Search failed', err);
+      }
+    }, 300);
   });
-});
+})();
 </script>

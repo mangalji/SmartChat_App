@@ -16,4 +16,8 @@ urlpatterns = [
     path('groups/<int:group_id>/media/',            views.group_media_gallery, name='group_media_gallery'),
     path('upload/',                                 views.upload_media,        name='upload_media'),
     path('ai-suggest/',                             views.ai_suggest,          name='ai_suggest'),
+    path('search-users/',                           views.search_users,        name='search_users'),
+    path('schedule/',                               views.schedule_message,    name='schedule_message'),
+    path('scheduled-list/',                         views.list_scheduled_messages, name='list_scheduled'),
+    path('scheduled-cancel/<int:msg_id>/',           views.cancel_scheduled_message, name='cancel_scheduled'),
 ]

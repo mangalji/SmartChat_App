@@ -34,12 +34,10 @@ ALLOWED_FILE_EXTS  = {'.pdf', '.doc', '.docx', '.zip', '.txt'}
 @login_required
 def index(request):
     me            = request.user
-    all_users     = User.objects.exclude(pk=me.pk).filter(is_active=True, is_verified=True)
     my_groups     = ChatGroup.objects.filter(members__user=me).prefetch_related('members')
-    conversations = _build_conversations(me, all_users)
+    conversations = _build_conversations(me)
     return render(request, 'chat/index.html', {
         'conversations': conversations,
-        'all_users':     all_users,
         'my_groups':     my_groups,
     })
 
@@ -63,15 +61,13 @@ def dm_room(request, user_id):
     # Mark as read
     history.filter(receiver=me, is_read=False).update(is_read=True)
 
-    all_users     = User.objects.exclude(pk=me.pk).filter(is_active=True, is_verified=True)
     my_groups     = ChatGroup.objects.filter(members__user=me)
-    conversations = _build_conversations(me, all_users)
+    conversations = _build_conversations(me)
 
     return render(request, 'chat/room.html', {
         'other':         other,
         'history':       history,
         'conversations': conversations,
-        'all_users':     all_users,
         'my_groups':     my_groups,
         'room_type':     'dm',
         'unread_counts': _unread_counts(me),
@@ -85,11 +81,9 @@ def dm_room(request, user_id):
 def group_list(request):
     me            = request.user
     my_groups     = ChatGroup.objects.filter(members__user=me).prefetch_related('members')
-    all_users     = User.objects.exclude(pk=me.pk).filter(is_active=True, is_verified=True)
-    conversations = _build_conversations(me, all_users)
+    conversations = _build_conversations(me)
     return render(request, 'chat/group_list.html', {
         'my_groups':     my_groups,
-        'all_users':     all_users,
         'conversations': conversations,
     })
 
@@ -100,7 +94,6 @@ def group_list(request):
 @login_required
 def create_group(request):
     me        = request.user
-    all_users = User.objects.exclude(pk=me.pk).filter(is_active=True, is_verified=True)
 
     if request.method == 'POST':
         name        = request.POST.get('name', '').strip()
@@ -109,7 +102,7 @@ def create_group(request):
 
         if not name:
             messages.error(request, 'Group name is required.')
-            return render(request, 'chat/create_group.html', {'all_users': all_users})
+            return render(request, 'chat/create_group.html')
 
         group = ChatGroup.objects.create(
             name=name, description=description, created_by=me
@@ -128,7 +121,7 @@ def create_group(request):
         messages.success(request, f'Group "{name}" created!')
         return redirect('chat:group_room', group_id=group.pk)
 
-    return render(request, 'chat/create_group.html', {'all_users': all_users})
+    return render(request, 'chat/create_group.html')
 
 
 # ──────────────────────────────────────────────
@@ -146,22 +139,15 @@ def group_room(request, group_id):
 
     history   = GroupMessage.objects.filter(group=group).order_by('timestamp').select_related('sender')
     members   = GroupMember.objects.filter(group=group).select_related('user')
-    all_users = User.objects.exclude(pk=me.pk).filter(is_active=True, is_verified=True)
     my_groups = ChatGroup.objects.filter(members__user=me)
-    conversations = _build_conversations(me, all_users)
-
-    # Users not already in group (for add member dropdown)
-    member_user_ids    = members.values_list('user_id', flat=True)
-    non_members        = all_users.exclude(pk__in=member_user_ids)
+    conversations = _build_conversations(me)
 
     return render(request, 'chat/group_room.html', {
         'group':        group,
         'history':      history,
         'members':      members,
         'membership':   membership,
-        'non_members':  non_members,
         'conversations': conversations,
-        'all_users':    all_users,
         'my_groups':    my_groups,
         'room_type':    'group',
     })
@@ -426,6 +412,97 @@ def ai_suggest(request):
     return JsonResponse({'suggestion': suggestion})
 
 
+@login_required
+@require_POST
+def schedule_message(request):
+    try:
+        data = json.loads(request.body)
+        body = data.get('body', '').strip()
+        time_str = data.get('scheduled_time') # ISO format
+        user_id = data.get('user_id')
+        group_id = data.get('group_id')
+
+        if not body or not time_str:
+            return JsonResponse({'error': 'Message and time are required.'}, status=400)
+
+        scheduled_time = timezone.datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+        
+        if scheduled_time <= timezone.now():
+            return JsonResponse({'error': 'Scheduled time must be in the future.'}, status=400)
+
+        from scheduler.models import ScheduledMessage
+        sm = ScheduledMessage.objects.create(
+            sender=request.user,
+            body=body,
+            scheduled_time=scheduled_time,
+            receiver_id=user_id if user_id else None,
+            group_id=group_id if group_id else None
+        )
+
+        return JsonResponse({
+            'success': True, 
+            'id': sm.id,
+            'message': f'Message scheduled for {scheduled_time.strftime("%Y-%m-%d %H:%M")}'
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_GET
+def list_scheduled_messages(request):
+    from scheduler.models import ScheduledMessage
+    msgs = ScheduledMessage.objects.filter(
+        sender=request.user,
+        is_sent=False,
+        scheduled_time__gt=timezone.now()
+    ).select_related('receiver', 'group')
+    
+    results = []
+    for m in msgs:
+        results.append({
+            'id': m.id,
+            'body': m.body,
+            'scheduled_time': m.scheduled_time.isoformat(),
+            'target_name': m.receiver.username if m.receiver else m.group.name,
+            'is_group': bool(m.group)
+        })
+    return JsonResponse({'results': results})
+
+
+@login_required
+@require_POST
+def cancel_scheduled_message(request, msg_id):
+    from scheduler.models import ScheduledMessage
+    sm = get_object_or_404(ScheduledMessage, pk=msg_id, sender=request.user, is_sent=False)
+    sm.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_GET
+def search_users(request):
+    query = request.GET.get('q', '').strip().lower()
+    if not query:
+        return JsonResponse({'results': []})
+
+    # Search by username or full name
+    users = User.objects.filter(
+        Q(username__icontains=query) | Q(full_name__icontains=query)
+    ).filter(is_active=True, is_verified=True).exclude(pk=request.user.pk)[:10]
+
+    results = []
+    for u in users:
+        results.append({
+            'id':        u.pk,
+            'username':  u.username,
+            'full_name': u.full_name,
+            'avatar':    u.avatar.url if u.avatar else None,
+        })
+
+    return JsonResponse({'results': results})
+
+
 def _fetch_context_from_db(user, last_msg_id):
     """Pull last 6 message bodies for context when JS can't."""
     try:
@@ -444,19 +521,19 @@ def _fetch_context_from_db(user, last_msg_id):
 # ──────────────────────────────────────────────
 # HELPERS
 # ──────────────────────────────────────────────
-def _build_conversations(me, all_users):
+def _build_conversations(me):
     chatted = Message.objects.filter(
         Q(sender=me) | Q(receiver=me)
     ).values_list('sender_id', 'receiver_id')
 
-    talked_to = set()
+    talked_to_ids = set()
     for s, r in chatted:
-        talked_to.add(r if s == me.pk else s)
+        talked_to_ids.add(r if s == me.pk else s)
 
     result = []
-    for uid in talked_to:
+    for uid in talked_to_ids:
         try:
-            other = all_users.get(pk=uid)
+            other = User.objects.get(pk=uid, is_active=True)
         except User.DoesNotExist:
             continue
         last_msg = Message.objects.filter(
