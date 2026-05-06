@@ -33,6 +33,7 @@ def signup_view(request):
         # Create unverified user
         user = User.objects.create_user(
             email=cd['email'],
+            username=cd['username'],
             password=cd['password'],
             full_name=cd['full_name'],
             phone=cd.get('phone', ''),

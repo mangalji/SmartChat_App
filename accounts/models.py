@@ -7,24 +7,27 @@ from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra):
+    def create_user(self, email, username, password=None, **extra):
         if not email:
             raise ValueError('Email is required')
+        if not username:
+            raise ValueError('Username is required')
         email = self.normalize_email(email)
-        user = self.model(email=email, **extra)
+        user = self.model(email=email, username=username, **extra)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, password, **extra):
+    def create_superuser(self, email, username, password, **extra):
         extra.setdefault('is_staff', True)
         extra.setdefault('is_superuser', True)
         extra.setdefault('is_verified', True)
-        return self.create_user(email, password, **extra)
+        return self.create_user(email, username, password, **extra)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
     email       = models.EmailField(unique=True)
+    username    = models.CharField(max_length=50, unique=True, db_index=True)
     full_name   = models.CharField(max_length=150)
     phone       = models.CharField(max_length=20, blank=True)
     avatar      = models.ImageField(upload_to='avatars/', blank=True, null=True)
@@ -34,11 +37,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(default=timezone.now)
 
     USERNAME_FIELD  = 'email'
-    REQUIRED_FIELDS = ['full_name']
+    REQUIRED_FIELDS = ['username', 'full_name']
     objects = UserManager()
 
     def __str__(self):
-        return self.email
+        return self.username or self.email
 
     class Meta:
         verbose_name = 'User'

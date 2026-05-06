@@ -32,6 +32,19 @@ class SignupForm(forms.Form):
             'max_length': 'Name cannot exceed 150 characters.',
         }
     )
+    username = forms.CharField(
+        min_length=3,
+        max_length=30,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control sc-input',
+            'placeholder': 'Choose a unique username',
+        }),
+        error_messages={
+            'required': 'Username is required.',
+            'min_length': 'Username must be at least 3 characters.',
+            'max_length': 'Username cannot exceed 30 characters.',
+        }
+    )
     email = forms.EmailField(
         max_length=70,
         widget=forms.EmailInput(attrs={
@@ -98,6 +111,16 @@ class SignupForm(forms.Form):
             raise forms.ValidationError('Name must contain at least 2 letters.')
 
         return val
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip().lower()
+        if not re.match(r'^[a-z0-9_]+$', username):
+            raise forms.ValidationError('Username can only contain letters, numbers, and underscores.')
+        
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError('This username is already taken. Try another one.')
+        
+        return username
 
     def clean_email(self):
         email = self.cleaned_data['email'].strip().lower()
