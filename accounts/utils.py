@@ -14,7 +14,7 @@ def generate_otp(length=6):
 
 
 def send_otp_email(user, otp_code, purpose):
-    """Send OTP to user's email via console backend."""
+    """Send OTP to user's email via SMTP server."""
     subject_map = {
         'signup': 'SmartChat — Verify your account',
         'login':  'SmartChat — Your login OTP',

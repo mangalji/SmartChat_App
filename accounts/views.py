@@ -46,7 +46,7 @@ def signup_view(request):
         request.session['otp_purpose']  = 'signup'
         request.session['otp_attempts'] = 0
 
-        messages.info(request, f'OTP sent to {user.email}. Check your console.')
+        messages.info(request, f'OTP sent to {user.email}. Check your email.')
         return redirect('accounts:verify_otp')
 
     return render(request, 'accounts/signup.html', {'form': form})
@@ -94,7 +94,7 @@ def login_view(request):
         request.session['otp_purpose']  = 'login'
         request.session['otp_attempts'] = 0
 
-        messages.info(request, f'OTP sent to {user.email}. Check your console.')
+        messages.info(request, f'OTP sent to {user.email}. Check your email.')
         return redirect('accounts:verify_otp')
 
     return render(request, 'accounts/login.html', {'form': form})
@@ -202,7 +202,7 @@ def resend_otp_view(request):
         create_otp(user, purpose=purpose)
         # Reset attempts on new OTP
         request.session['otp_attempts'] = 0
-        messages.success(request, 'New OTP sent. Check your console.')
+        messages.success(request, 'New OTP sent. Check your email.')
     except User.DoesNotExist:
         messages.error(request, 'User not found.')
 
