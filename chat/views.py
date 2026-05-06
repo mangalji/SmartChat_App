@@ -12,7 +12,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.conf import settings
 
-from .models import Message, ChatGroup, GroupMember, GroupMessage
+from chat.models import Message, ChatGroup, GroupMember, GroupMessage
 
 User = get_user_model()
 
@@ -506,7 +506,7 @@ def search_users(request):
 def _fetch_context_from_db(user, last_msg_id):
     """Pull last 6 message bodies for context when JS can't."""
     try:
-        from .models import Message
+        from chat.models import Message
         from django.db.models import Q
         msgs = Message.objects.filter(
             Q(sender=user) | Q(receiver=user),

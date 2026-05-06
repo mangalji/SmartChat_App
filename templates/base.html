@@ -49,7 +49,7 @@
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link sc-nav-link" href="{% url 'scheduler:index' %}">
+          <a class="nav-link sc-nav-link" href="#" onclick="document.getElementById('view-scheduled-btn').click(); return false;">
             <i class="bi bi-clock me-1"></i>Scheduled
           </a>
         </li>
@@ -61,8 +61,8 @@
         <li class="nav-item ms-lg-2">
           <div class="dropdown">
             <button class="btn sc-user-btn dropdown-toggle" data-bs-toggle="dropdown">
-              <span class="sc-avatar-sm">{{ user.full_name|slice:":1"|upper }}</span>
-              <span class="ms-2 d-none d-lg-inline">{{ user.full_name|truncatechars:16 }}</span>
+              <span class="sc-avatar-sm">{{ user.username|slice:":1"|upper }}</span>
+              <span class="ms-2 d-none d-lg-inline">@{{ user.username|truncatechars:16 }}</span>
             </button>
             <ul class="dropdown-menu dropdown-menu-end sc-dropdown">
               <li><span class="dropdown-item-text small text-muted px-3">{{ user.email }}</span></li>
